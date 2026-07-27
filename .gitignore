@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+
+# 上游依赖:minimind 原项目(用户自行 clone,不纳入本仓库)
+/minimind/
+
+# IDE / 工具本地文件
+.zcode/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 敏感配置(token 等)——绝不提交
+.env
+.env.*
+*.secret
+credentials*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 训练产物
+checkpoints/
+*.pth
+*.safetensors
+*.bin
+wandb/
+swanlab/
+runs/
+logs/
+*.log
+
+# 数据与缓存(体积大,不进版本库)
+data/*
+!data/.gitkeep
+datasets/
+.cache/
+hf_cache/
+
+# 评测结果(部分保留,大文件忽略)
+results/*
+!results/.gitkeep
+!results/**/*.md
+
+# Docker
+*.tar
+
+# 临时与系统文件
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+
+# 模型转换中间产物
+out/
+tmp/

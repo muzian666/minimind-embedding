@@ -1,0 +1,28 @@
+# MiniMind-Embedding & Rerank 依赖
+# 注意:RTX 5080(Blackwell sm_120)需要 torch cu130 wheel,
+#       必须用 --index-url 指定 CUDA 后缀的源:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu130
+#
+# 完整环境建议直接用 Docker(见 docker/Dockerfile),版本已对齐 Blackwell。
+
+# 核心:torch(CUDA 13.0 wheel,Blackwell 支持,在 13.3 驱动上向后兼容)
+# torch>=2.13.0  # 用 --index-url https://download.pytorch.org/whl/cu130 安装
+
+# 模型与分词
+transformers>=5.0.0
+tokenizers>=0.20.0
+
+# 训练与数据处理
+datasets>=3.0.0
+accelerate>=1.0.0
+numpy<2.3.0
+
+# 评测与模型兼容
+mteb>=2.18.0
+sentence-transformers>=5.0.0
+scikit-learn>=1.5.0
+scipy>=1.13.0
+
+# 日志与可视化
+swanlab>=0.4.0
+tqdm>=4.66.0

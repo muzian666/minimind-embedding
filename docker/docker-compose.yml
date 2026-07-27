@@ -1,0 +1,85 @@
+# MiniMind-Embedding & Rerank —— 开发/训练容器
+#
+# 前置条件(Windows):安装 Docker Desktop + 启用 WSL2 后端,
+# 并安装 NVIDIA Container Toolkit(或 Docker Desktop 最新版已内置 GPU 支持)。
+# 验证 GPU 可见:docker compose run --rm dev nvidia-smi
+#
+# 常用命令:
+#   docker compose build                                    # 构建镜像
+#   docker compose run --rm dev                             # 进交互 shell
+#   docker compose run --rm smoke                           # 跑 smoke test(见下方 service)
+#   docker compose run --rm train python -m minimind_embedding.train --help
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: minimind-embed:latest
+    volumes:
+      # 业务代码(挂载到 /workspace,双向同步)
+      - ../:/workspace
+      # HF 缓存(避免重复下载数据/模型)
+      - hf_cache:/workspace/hf_cache
+    env_file:
+      # 敏感配置(HF_TOKEN 等);.env 已被 .gitignore 排除,不会进仓库
+      - ../.env
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+    working_dir: /workspace
+
+  # 一键 smoke test:验证代码能跑、loss 能降(用 demo 数据,不依赖 GPU 也行)
+  smoke:
+    image: minimind-embed:latest
+    depends_on: [dev]
+    volumes:
+      - ../:/workspace
+      - hf_cache:/workspace/hf_cache
+    working_dir: /workspace
+    command: >
+      python -m minimind_embedding.train
+      --config embed_dense_64m
+      --stage 2
+      --data_type demo
+      --batch_size 16
+      --accumulation_steps 1
+      --epochs 5
+      --max_length 64
+      --log_steps 2
+      --save_steps 100000
+      --device cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # 通用训练入口(用 override 指定具体命令)
+  train:
+    image: minimind-embed:latest
+    depends_on: [dev]
+    volumes:
+      - ../:/workspace
+      - hf_cache:/workspace/hf_cache
+    working_dir: /workspace
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  hf_cache:
