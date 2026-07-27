@@ -65,6 +65,8 @@ def parse_args():
     p.add_argument("--jsonl_path", default="data/embedding_train.jsonl")
     p.add_argument("--hf_dataset", default="t2ranking")
     p.add_argument("--max_negatives", type=int, default=7)
+    p.add_argument("--max_train_samples", type=int, default=0,
+                   help="限制训练样本数(0=用全部;mini 验证用如 2000)")
     # 训练
     p.add_argument("--batch_size", type=int, default=8)
     p.add_argument("--accumulation_steps", type=int, default=1)
@@ -82,7 +84,44 @@ def parse_args():
     p.add_argument("--log_steps", type=int, default=10)
     p.add_argument("--device", default="cuda")
     p.add_argument("--seed", type=int, default=42)
+    # wandb 日志(失败时优雅降级为纯 stdout)
+    p.add_argument("--wandb_project", default="minimind-embedding")
+    p.add_argument("--wandb_run_name", default=None)
+    p.add_argument("--no_wandb", action="store_true", help="禁用 wandb")
     return p.parse_args()
+
+
+def init_wandb(args, config):
+    """初始化 wandb。失败(无 key/离线)时返回 None,训练继续走纯 stdout。"""
+    if args.no_wandb:
+        return None
+    try:
+        import wandb
+        run_name = args.wandb_run_name or f"{args.config}_stage{args.stage}"
+        run = wandb.init(
+            project=args.wandb_project,
+            name=run_name,
+            config={
+                "config": args.config,
+                "stage": args.stage,
+                "use_moe": config.use_moe,
+                "batch_size": args.batch_size,
+                "accumulation_steps": args.accumulation_steps,
+                "max_length": args.max_length,
+                "max_negatives": args.max_negatives,
+                "lr": args.lr,
+                "temp": args.temp,
+                "margin": args.margin,
+                "use_mrl": args.use_mrl,
+                "epochs": args.epochs,
+                "intermediate_size": config.intermediate_size,
+            },
+        )
+        print(f"[wandb] 已启用,project={args.wandb_project} run={run_name}")
+        return run
+    except Exception as e:
+        print(f"[wandb] 初始化失败,降级为纯 stdout: {e}")
+        return None
 
 
 def build_dataset(args):
@@ -90,12 +129,20 @@ def build_dataset(args):
     if args.data_type == "demo":
         args.jsonl_path = os.path.join(_ROOT, args.jsonl_path)
         write_demo_jsonl(args.jsonl_path, n=256)
-        return TripletJsonlDataset(args.jsonl_path, max_negatives=args.max_negatives)
+        ds = TripletJsonlDataset(args.jsonl_path, max_negatives=args.max_negatives)
     elif args.data_type == "jsonl":
-        return TripletJsonlDataset(args.jsonl_path, max_negatives=args.max_negatives)
+        ds = TripletJsonlDataset(args.jsonl_path, max_negatives=args.max_negatives)
     elif args.data_type == "hf":
-        return HFEmbeddingDataset(args.hf_dataset, max_negatives=args.max_negatives)
-    raise ValueError(args.data_type)
+        ds = HFEmbeddingDataset(args.hf_dataset, max_negatives=args.max_negatives)
+    else:
+        raise ValueError(args.data_type)
+    # 子集采样(mini 验证用)
+    if args.max_train_samples > 0:
+        from torch.utils.data import Subset
+        n = min(args.max_train_samples, len(ds))
+        ds = Subset(ds, list(range(n)))
+        print(f"[build_dataset] 子集采样:只用前 {n} 条")
+    return ds
 
 
 def encode_batch(model, batch_enc, device):
@@ -243,6 +290,9 @@ def main():
     optim = torch.optim.AdamW(model.parameters(), lr=args.lr)
     print(f"总步数: {total_steps}, batch={args.batch_size}, accum={args.accumulation_steps}")
 
+    # wandb
+    wandb_run = init_wandb(args, config)
+
     # 5) 训练循环
     model.train()
     global_step = 0
@@ -282,12 +332,24 @@ def main():
                     cur_lr = optim.param_groups[0]["lr"]
                     print(f"epoch {epoch} step {global_step}/{total_steps} "
                           f"loss {avg:.4f} lr {cur_lr:.2e}")
+                    if wandb_run is not None:
+                        import wandb
+                        wandb.log({
+                            "loss": avg,
+                            "lr": cur_lr,
+                            "epoch": epoch,
+                            "step": global_step,
+                            "progress": global_step / total_steps,
+                        }, step=global_step)
                     running_loss = 0.0
                 if global_step % args.save_steps == 0:
                     save_checkpoint(model, args, config, global_step, tokenizer)
 
     save_checkpoint(model, args, config, global_step, tokenizer)
     print(f"== 训练完成,共 {global_step} 步 ==")
+    if wandb_run is not None:
+        import wandb
+        wandb.finish()
 
 
 if __name__ == "__main__":

@@ -52,7 +52,8 @@ RUN pip install \
         "scipy>=1.13.0" \
         "scikit-learn>=1.5.0" \
         "tqdm>=4.66.0" \
-        "swanlab>=0.4.0"
+        "swanlab>=0.4.0" \
+        "wandb>=0.18.0"
 
 # 评测框架(MTEB v2 + sentence-transformers)
 RUN pip install \
