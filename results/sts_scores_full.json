@@ -1,0 +1,10 @@
+{
+  "checkpoint": "/workspace/checkpoints/embedding/embedding_stage2_768.pth",
+  "scores": {
+    "ATEC": 0.2655729332872783,
+    "BQ": 0.3974988727056585,
+    "LCQMC": 0.6320905998723628,
+    "STSB": 0.6686922248349526,
+    "_average": 0.49096365767506306
+  }
+}

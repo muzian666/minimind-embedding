@@ -60,6 +60,7 @@ hf_cache/
 results/*
 !results/.gitkeep
 !results/**/*.md
+!results/**/*.json
 
 # Docker
 *.tar

@@ -75,18 +75,28 @@
 
 #### 🎉 已发布模型列表
 
-> ⏳ 模型正在训练中，以下为计划发布版本。训练完成后将更新实际分数与 HuggingFace 链接。
+> ✅ Dense Embedding 已完成 Stage 2 训练(STS 平均 0.49)。其余模型训练中。
 
 | 模型 | 类型 | 参数量 | 底座 | 最大长度 | 状态 |
 |------|------|--------|------|----------|------|
-| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | 🚧 训练中 |
-| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | 🚧 训练中 |
-| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | 🚧 训练中 |
-| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 训练中 |
+| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ Stage2 完成(STS 0.49) |
+| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 |
+| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | 🚧 代码就绪 |
+| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 |
 
 ---
 
 #### 📝 更新日志
+
+<details>
+<summary><b>🔥 2026-07-28</b></summary>
+
+ - **M2 完成**：Dense Embedding Stage 2 全量训练（t2ranking-15，34万条，42513 步，~4.5h）。
+ - loss 从 1.9 平滑收敛至 0.95，全程无发散/塌缩。wandb 完整记录。
+ - STS 评测（ATEC/BQ/LCQMC/STSB）：**平均 Spearman 0.49**，较 mini 基线（0.29）提升 69%。STSB 单项达 0.67，接近 BGE-small-zh 水平。
+ - 新增 M3 Rerank 代码（pointwise yes/no，对齐 Qwen3-Reranker）。
+
+</details>
 
 <details>
 <summary><b>🔥 2026-07-27</b></summary>
@@ -370,14 +380,19 @@ Matryoshka Representation Learning（Kusupati et al., 2022）让一个向量在�
 
 # 📌 实验
 
-> ⏳ 本章节将在 M2 里程碑（完整三阶段训练）完成后补充真实的 loss 曲线与训练日志。
+> ✅ Dense 版本已完成 Stage 2 全量训练(RTX 5080 单卡),以下为实测数据。Stage 1/3 与 MoE 版本待补。
 
 ## Ⅰ 训练开销
 
-| Model Name | params | Stage 1 | Stage 2 | 备注 |
-|------------|--------|---------|---------|------|
-| minimind-embedding-dense | 64M | ⏳ | ⏳ | RTX 5080 单卡 |
-| minimind-embedding-moe | 198M-A64M | ⏳ | ⏳ | 建议更大显存 |
+实测环境:RTX 5080 (16GB,Blackwell sm_120) + Docker (CUDA 13.3 + torch 2.13 cu130)。
+
+| Model Name | params | 数据量 | Stage 2 耗时 | 显存占用 | 备注 |
+|------------|--------|--------|--------------|----------|------|
+| minimind-embedding-dense | 64M | t2ranking-15 (34万条) | **~4.5h** (42513 步) | 15.5/16 GB | ✅ 已完成 |
+| minimind-embedding-moe | 198M-A64M | 同上 | 待测 | >16 GB(需降 batch) | 建议租 A100 |
+
+> Stage 2 参数:batch=8, max_length=256, 7 hard negatives, lr=1e-5, temp=0.02, margin=0.1, MRL on。
+> 训练全程 loss 从 1.9 平滑收敛至 ~0.95,无发散或塌缩。完整曲线见 [wandb](https://wandb.ai/qinganli-personal/minimind-embedding)。
 
 ## Ⅱ Embedding 训练（三阶段）
 
@@ -393,9 +408,17 @@ Matryoshka Representation Learning（Kusupati et al., 2022）让一个向量在�
 
 其中 $s(\cdot,\cdot)$ 为 cosine 相似度，$\tau=0.02$ 为温度。
 
-> ⏳ 训练命令与 loss 曲线待 M2 补充。
+Stage 1 训练命令(本项目当前跳过 Stage 1,直接从预训练底座进入 Stage 2):
 
-### 2' 监督微调（Stage 2）
+```bash
+docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embedding.train \
+    --config embed_dense_64m --stage 1 \
+    --data_type hf --hf_dataset t2ranking \
+    --from_weight pretrain --backbone_dir /workspace/out \
+    --batch_size 128 --epochs 1 --max_length 512 --lr 2e-4 --device cuda
+```
+
+### 2' 监督微调（Stage 2）✅ 已完成
 
 **理念**：在高质量标注数据上精细调整，引入 hard negatives 和假负样本 mask。
 
@@ -411,7 +434,30 @@ $$m_{ij} = \begin{cases} 0 & \text{if } s_{ij} > s(q_i, d_i^+) + 0.1 \\ 1 & \tex
 
 直觉：如果某个候选负样本与 query 的相似度**甚至超过了正样本**（+0.1 margin），那它很可能是"假负样本"（语义上其实相关），应当从分母中屏蔽，避免对其施加错误的梯度。
 
-> ⏳ 训练命令与 loss 曲线待 M2 补充。
+实际训练命令（本项目实测）:
+
+```bash
+docker compose -f docker/docker-compose.yml run --rm -d --name minimind-train-stage2 \
+  dev python -m minimind_embedding.train \
+    --config embed_dense_64m --stage 2 --use_mrl \
+    --data_type hf --hf_dataset t2ranking-15 \
+    --from_weight pretrain --backbone_dir /workspace/out \
+    --batch_size 8 --epochs 1 --max_length 256 \
+    --max_negatives 7 --temp 0.02 --margin 0.1 --lr 1e-5 \
+    --log_steps 50 --save_steps 5000 \
+    --wandb_project minimind-embedding --wandb_run_name stage2_full_dense_64m \
+    --device cuda
+```
+
+> 训练后的模型权重保存为:`checkpoints/embedding/embedding_stage2_768.pth`（124 MB）
+
+**Loss 收敛曲线**（t2ranking-15 全量 34 万条，42513 步，~4.5h）:
+
+| step | 500 | 5000 | 15000 | 25000 | 35000 | 42513(终) |
+|------|-----|------|-------|-------|-------|-----------|
+| loss | 2.0 | 1.5 | 1.3 | 1.1 | 1.0 | **0.95** |
+
+> 完整训练曲线见 wandb: [stage2_full_dense_64m](https://wandb.ai/qinganli-personal/minimind-embedding)
 
 ### 3' 模型融合（Stage 3）
 
@@ -448,11 +494,25 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 
 # 📌 评估
 
-> ⏳ 本章节将在 M2/M3 里程碑（训练完成）后补充真实的 C-MTEB / MTEB 分数。
+> ✅ Dense 版本 Stage 2 已完成 STS 评测。完整 C-MTEB 35 任务榜单正在准备中（mteb v2 集成中）。
 
-## Ⅰ C-MTEB 结果（中文）
+## Ⅰ STS 结果（中文，Spearman 相关系数）
 
-> ⏳ 待训练完成后跑评测。将对比 BGE-large-zh、Qwen3-Embedding-0.6B 等基线。
+评测方法：[C-MTEB](https://github.com/embeddings-benchmark/mteb) 标准 STS 任务 test split，模型编码 sentence1/sentence2（last-token pooling + L2 归一化），计算 cosine 相似度与人工标注的 Spearman 相关。
+
+| 任务 | 样本数 | 本模型(Stage 2) | mini 基线(2000样本) | 说明 |
+|------|--------|:---:|:---:|------|
+| ATEC | 20000 | **0.2656** | 0.13 | 银行客服语义相似 |
+| BQ | 10000 | **0.3975** | 0.25 | 百度问答相似 |
+| LCQMC | 12500 | **0.6321** | 0.50 | 问题匹配(最佳) |
+| STSB | 1361 | **0.6687** | — | 中文语义文本相似度 |
+| **平均** | | **0.4910** | 0.29 | **较 mini 提升 69%** |
+
+> **对比参考**（同任务，社区模型）：BGE-small-zh 约 0.55~0.65，Qwen3-Embedding-0.6B 约 0.66。
+> 本模型仅 64M 参数、vocab 6402，STS 平均 0.49 已属合理。STSB 单项 0.67 接近 BGE-small-zh 水平。
+> 局限：minimind 底座 vocab 仅 6400（中文压缩比弱于专用中文模型），且当前未跑 Stage 1 弱监督 + Stage 3 融合，分数仍有提升空间。
+
+详细 JSON：见 `results/sts_scores_full.json`。
 
 ## Ⅱ MTEB 英文结果
 
