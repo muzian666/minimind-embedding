@@ -1,0 +1,113 @@
+== MiniMind-Embedding 训练 (stage1, embed_dense_64m) ==
+[load_pretrained_backbone] 已加载 /root/minimind-embeddings/out/pretrain_768.pth
+  完整加载: 90 个参数
+  部分加载: 0 个(vocab 扩展,前 6400 行已拷贝)
+  跳过:     1 个(embedding 模型忽略 lm_head / rerank 缺 head 属正常)
+参数量: 64.5M
+[HFEmbeddingDataset] 加载 sentence-transformers/t2ranking (config=triplet) split=train ...
+[HFEmbeddingDataset] 共 90467 条
+总步数: 1413, batch=64, accum=1
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: qinganli (qinganli-personal) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 4smrlc9w
+wandb: Tracking run with wandb version 0.28.1
+wandb: Run data is saved locally in /root/minimind-embeddings/wandb/run-20260728_093301-4smrlc9w
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run cloud_stage1_weak_supervision
+wandb: ⭐️ View project at https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: 🚀 View run at https://wandb.ai/qinganli-personal/minimind-embedding/runs/4smrlc9w
+[wandb] 已启用,project=minimind-embedding run=cloud_stage1_weak_supervision
+epoch 0 step 20/1413 loss 2.9776 lr 2.00e-04
+epoch 0 step 40/1413 loss 1.8704 lr 2.00e-04
+epoch 0 step 60/1413 loss 1.8964 lr 1.99e-04
+epoch 0 step 80/1413 loss 1.6988 lr 1.99e-04
+epoch 0 step 100/1413 loss 1.5578 lr 1.98e-04
+epoch 0 step 120/1413 loss 1.4897 lr 1.97e-04
+epoch 0 step 140/1413 loss 1.4937 lr 1.96e-04
+epoch 0 step 160/1413 loss 1.3746 lr 1.94e-04
+epoch 0 step 180/1413 loss 1.3088 lr 1.93e-04
+epoch 0 step 200/1413 loss 1.2683 lr 1.91e-04
+epoch 0 step 220/1413 loss 1.2810 lr 1.90e-04
+epoch 0 step 240/1413 loss 1.2872 lr 1.88e-04
+epoch 0 step 260/1413 loss 1.2442 lr 1.85e-04
+epoch 0 step 280/1413 loss 1.1018 lr 1.83e-04
+epoch 0 step 300/1413 loss 1.1508 lr 1.81e-04
+epoch 0 step 320/1413 loss 1.0139 lr 1.78e-04
+epoch 0 step 340/1413 loss 1.0700 lr 1.76e-04
+epoch 0 step 360/1413 loss 1.0257 lr 1.73e-04
+epoch 0 step 380/1413 loss 1.1612 lr 1.70e-04
+epoch 0 step 400/1413 loss 1.0918 lr 1.67e-04
+epoch 0 step 420/1413 loss 0.9846 lr 1.64e-04
+epoch 0 step 440/1413 loss 0.8993 lr 1.60e-04
+epoch 0 step 460/1413 loss 0.9960 lr 1.57e-04
+epoch 0 step 480/1413 loss 1.0059 lr 1.54e-04
+epoch 0 step 500/1413 loss 0.9647 lr 1.50e-04
+epoch 0 step 520/1413 loss 0.8647 lr 1.46e-04
+epoch 0 step 540/1413 loss 0.8661 lr 1.43e-04
+epoch 0 step 560/1413 loss 0.8190 lr 1.39e-04
+epoch 0 step 580/1413 loss 0.8250 lr 1.35e-04
+epoch 0 step 600/1413 loss 0.8978 lr 1.31e-04
+epoch 0 step 620/1413 loss 0.8041 lr 1.27e-04
+epoch 0 step 640/1413 loss 0.8004 lr 1.23e-04
+epoch 0 step 660/1413 loss 0.8056 lr 1.19e-04
+epoch 0 step 680/1413 loss 0.7345 lr 1.15e-04
+epoch 0 step 700/1413 loss 0.7492 lr 1.12e-04
+epoch 0 step 720/1413 loss 0.7365 lr 1.07e-04
+epoch 0 step 740/1413 loss 0.6587 lr 1.04e-04
+epoch 0 step 760/1413 loss 0.6531 lr 9.95e-05
+epoch 0 step 780/1413 loss 0.6607 lr 9.56e-05
+epoch 0 step 800/1413 loss 0.6027 lr 9.16e-05
+epoch 0 step 820/1413 loss 0.6628 lr 8.77e-05
+epoch 0 step 840/1413 loss 0.5645 lr 8.39e-05
+epoch 0 step 860/1413 loss 0.6402 lr 8.01e-05
+epoch 0 step 880/1413 loss 0.5679 lr 7.63e-05
+epoch 0 step 900/1413 loss 0.5417 lr 7.26e-05
+epoch 0 step 920/1413 loss 0.6528 lr 6.90e-05
+epoch 0 step 940/1413 loss 0.5149 lr 6.55e-05
+epoch 0 step 960/1413 loss 0.5323 lr 6.21e-05
+epoch 0 step 980/1413 loss 0.5520 lr 5.87e-05
+epoch 0 step 1000/1413 loss 0.5221 lr 5.55e-05
+epoch 0 step 1020/1413 loss 0.6039 lr 5.24e-05
+epoch 0 step 1040/1413 loss 0.5614 lr 4.94e-05
+epoch 0 step 1060/1413 loss 0.5375 lr 4.65e-05
+epoch 0 step 1080/1413 loss 0.5151 lr 4.37e-05
+epoch 0 step 1100/1413 loss 0.5218 lr 4.11e-05
+epoch 0 step 1120/1413 loss 0.4768 lr 3.86e-05
+epoch 0 step 1140/1413 loss 0.4636 lr 3.62e-05
+epoch 0 step 1160/1413 loss 0.5064 lr 3.40e-05
+epoch 0 step 1180/1413 loss 0.4857 lr 3.19e-05
+epoch 0 step 1200/1413 loss 0.4605 lr 3.00e-05
+epoch 0 step 1220/1413 loss 0.4799 lr 2.82e-05
+epoch 0 step 1240/1413 loss 0.4307 lr 2.67e-05
+epoch 0 step 1260/1413 loss 0.4812 lr 2.52e-05
+epoch 0 step 1280/1413 loss 0.4868 lr 2.40e-05
+epoch 0 step 1300/1413 loss 0.4415 lr 2.29e-05
+epoch 0 step 1320/1413 loss 0.4297 lr 2.20e-05
+epoch 0 step 1340/1413 loss 0.4535 lr 2.12e-05
+epoch 0 step 1360/1413 loss 0.4276 lr 2.06e-05
+epoch 0 step 1380/1413 loss 0.4349 lr 2.03e-05
+epoch 0 step 1400/1413 loss 0.4482 lr 2.00e-05
+[save] checkpoints/embedding/embedding_stage1_768_step1413.pth + latest -> checkpoints/embedding/embedding_stage1_768.pth
+== 训练完成,共 1413 步 ==
+wandb: updating run metadata
+wandb: uploading wandb-summary.json; uploading config.yaml; uploading output.log
+wandb: uploading history steps 69-69, summary, console lines 71-72
+wandb: 
+wandb: Run history:
+wandb:    epoch ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:     loss █▅▅▄▄▄▄▃▃▃▃▃▃▃▂▂▂▂▂▂▂▂▂▂▁▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:       lr ███████▇▇▇▇▆▆▆▆▅▅▅▅▅▄▄▃▃▃▃▂▂▂▂▂▂▁▁▁▁▁▁▁▁
+wandb: progress ▁▁▁▂▂▂▂▂▃▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▇▇▇▇▇▇▇██
+wandb:     step ▁▁▁▁▁▂▂▂▂▂▃▃▃▃▄▄▄▄▄▅▅▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇▇███
+wandb: 
+wandb: Run summary:
+wandb:    epoch 0
+wandb:     loss 0.44817
+wandb:       lr 2e-05
+wandb: progress 0.9908
+wandb:     step 1400
+wandb: 
+wandb: 🚀 View run cloud_stage1_weak_supervision at: https://wandb.ai/qinganli-personal/minimind-embedding/runs/4smrlc9w
+wandb: ⭐️ View project at: https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260728_093301-4smrlc9w/logs

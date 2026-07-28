@@ -424,7 +424,11 @@ Matryoshka Representation Learning（Kusupati et al., 2022）让一个向量在�
 | 48000 | 2 | 0.72 | 第3轮 |
 | 63768 | 2(终) | 0.72 | 收敛 |
 
-> 完整曲线见 wandb: [cloud_stage2_FINAL_batch16_w128](https://wandb.ai/qinganli-personal/minimind-embedding)
+<div align="center">
+
+![训练 Loss 曲线(Stage1 + Stage2)](./images/full_training_loss.png)
+
+</div>
 
 ## Ⅱ Embedding 训练（三阶段）
 
@@ -489,7 +493,11 @@ docker compose -f docker/docker-compose.yml run --rm -d --name minimind-train-st
 |------|-----|------|-------|-------|-------|-----------|
 | loss | 2.0 | 1.5 | 1.3 | 1.1 | 1.0 | **0.95** |
 
-> 完整训练曲线见 wandb: [stage2_full_dense_64m](https://wandb.ai/qinganli-personal/minimind-embedding)
+<div align="center">
+
+![Stage 2 Loss 曲线](./images/stage2_loss.png)
+
+</div>
 
 ### 3' 模型融合（Stage 3）
 
@@ -540,11 +548,23 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 | STSB | 1361 | 0.637 | **0.637** | — | 中文语义文本相似度 |
 | **平均** | | **0.478** | **0.478** | 0.29 | — |
 
+<div align="center">
+
+![C-MTEB STS 各任务分数](./images/sts_scores.png)
+
+</div>
+
 ### 结果分析
 
 1. **Stage3 SLERP 融合 vs Stage2 未融合**：分数几乎一致（0.4778 vs 0.4777）。在小模型(64M)上,训练后期的多个 checkpoint 本身已经很接近,融合的边际收益不明显。Qwen3-Embedding 的融合收益来自大模型(0.6B+)的更高维度表达空间。
 2. **3 epoch vs 1 epoch**：持平(均约 0.48)。模型在 1 epoch 已收敛到该数据/架构的上限,更多 epoch 没带来 STS 提升(虽 train loss 持续降,但属过拟合 train set)。
 3. **瓶颈定位**：LCQMC/STSB 较强(0.63/0.64),ATEC/BQ 较弱(0.27/0.38)。根本瓶颈在 **minimind 底座 vocab=6400**(中文压缩比弱)+ **Stage1 数据量不足**(9万 vs Qwen3 的 1.5亿)。
+
+<div align="center">
+
+![模型对比](./images/model_comparison.png)
+
+</div>
 
 > **对比参考**：BGE-small-zh 约 0.55~0.65，Qwen3-Embedding-0.6B 约 0.66。本模型仅 64M、vocab 6400,STS 0.48 受限于底座,但完整复现了 Qwen3-Embedding 三阶段技术路线。
 
