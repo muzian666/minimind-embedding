@@ -6,12 +6,12 @@
 
 <div align="center">
 
-![License](https://img.shields.io/github/license/andyl/minimind-embeddings)
-![GitHub last commit](https://img.shields.io/github/last-commit/andyl/minimind-embeddings)
-![GitHub Repo stars](https://img.shields.io/github/stars/andyl/minimind-embeddings?style=social)
-![PRs Welcome](https://img.shields.io/badge/PRs-welcome-blue)
+[![License](https://img.shields.io/github/license/muzian666/minimind-embedding?color=blue)](./LICENSE)
+[![GitHub last commit](https://img.shields.io/github/last-commit/muzian666/minimind-embedding)](https://github.com/muzian666/minimind-embedding/commits/main)
+[![GitHub Repo stars](https://img.shields.io/github/stars/muzian666/minimind-embedding?style=social)](https://github.com/muzian666/minimind-embedding/stargazers)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-blue)](https://github.com/muzian666/minimind-embedding/pulls)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.13%2B%20cu130-ee4c2c)](https://pytorch.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.8%2B%20cu128-ee4c2c)](https://pytorch.org/)
 [![MTEB](https://img.shields.io/badge/MTEB-v2.18-9c27b0)](https://github.com/embeddings-benchmark/mteb)
 
 </div>
@@ -605,9 +605,9 @@ A: MiniMind 的 BPE 词表（vocab=6400）中没有可靠的 "yes"/"no" 单 toke
 ```bibtex
 @misc{minimind-embeddings,
   title  = {MiniMind-Embedding: A Small Embedding and Rerank Model Based on MiniMind},
-  author = {andyl},
+  author = {muzian666},
   year   = {2026},
-  url    = {https://github.com/andyl/minimind-embeddings},
+  url    = {https://github.com/muzian666/minimind-embedding},
   note   = {Based on MiniMind, inspired by Qwen3-Embedding}
 }
 
