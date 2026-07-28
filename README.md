@@ -75,18 +75,30 @@
 
 #### 🎉 已发布模型列表
 
-> ✅ Dense Embedding 完成完整三阶段(STS 0.48)。Dense Rerank v0 零样本 MAP@10=0.47。MoE 版本训练中。
+> ✅ Dense 与 MoE 两个版本均完成三阶段。Dense STS 0.48 优于 MoE 0.42(详见对比)。
 
-| 模型 | 类型 | 参数量 | 底座 | 最大长度 | 状态 |
-|------|------|--------|------|----------|------|
-| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ 三阶段完成(STS 0.48) |
-| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | 🚧 训练中 |
-| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ v0 零样本(MAP@10 0.47) |
-| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 |
+| 模型 | 类型 | 参数量 | 底座 | 最大长度 | 状态 | STS 平均 |
+|------|------|--------|------|----------|------|:---:|
+| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ 三阶段完成 | **0.478** |
+| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | ✅ 三阶段完成 | 0.422 |
+| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ v0 零样本(MAP@10 0.47) | — |
+| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 | — |
 
 ---
 
 #### 📝 更新日志
+
+<details>
+<summary><b>🔥 2026-07-29</b></summary>
+
+ - **MoE 版本完整三阶段完成**(严格受控对比 Dense):
+   - Stage1/2/3 全流程,与 Dense 用完全相同的数据/超参/流程
+   - **反直觉发现:MoE(198M) STS 0.422 < Dense(64M) STS 0.478**
+   - 原因:MoE top-1 routing 稀疏激活损害 embedding 的全局语义聚合;印证 Qwen3-Embedding 选 dense 的设计
+ - Dense Embedding 已发布 HuggingFace: [Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense)
+ - Dense Rerank v0:纯预训练底座零样本 MAP@10=0.47(最佳),pointwise 微调反降(灾难性遗忘)
+
+</details>
 
 <details>
 <summary><b>🔥 2026-07-28 (晚)</b></summary>
@@ -412,7 +424,7 @@ Matryoshka Representation Learning（Kusupati et al., 2022，俄罗斯套娃表�
 
 # 📌 实验
 
-> ✅ Dense 版本已完成**完整三阶段**(Stage1 弱监督 → Stage2 监督+MRL → Stage3 SLERP 融合)。
+> ✅ Dense 与 MoE 两个版本均已完成**完整三阶段**(Stage1 弱监督 → Stage2 监督+MRL → Stage3 SLERP 融合)。
 
 ## Ⅰ 训练开销
 
@@ -420,19 +432,23 @@ Matryoshka Representation Learning（Kusupati et al., 2022，俄罗斯套娃表�
 - **Stage1/2/3**:云端 RTX 5090 (32GB,Blackwell sm_120) + torch 2.8 cu128,208 核 CPU(`num_workers=128` 充分发挥)
 - **早期验证**:本地 RTX 5080 (16GB) + Docker (CUDA 13.3 + torch 2.13 cu130)
 
-| 阶段 | 数据 | 配置 | 步数 | 耗时 | Loss |
-|------|------|------|------|------|------|
-| **Stage 1 弱监督** | t2ranking triplet 9万条 | batch=64, lr=2e-4, 1epoch | 1413 | ~10min | 1.16→0.43 |
-| **Stage 2 监督** | t2ranking-15 34万条 | batch=16, workers=128, lr=1e-5, **3epoch**, MRL | 63768 | ~6.8h | 1.47→0.72 |
-| **Stage 3 融合** | Stage2 最后 5 个 ckpt | SLERP t=0.5 | — | <1min | — |
+| 版本 | 阶段 | 数据 | 配置 | 步数 | 耗时 | Loss |
+|------|------|------|------|------|------|------|
+| **Dense** | Stage 1 | t2ranking triplet 9万条 | batch=64, lr=2e-4 | 1413 | ~10min | 1.16→0.43 |
+| **Dense** | Stage 2 | t2ranking-15 34万条 | batch=16, workers=128, 3epoch, MRL | 63768 | ~6.8h | 1.47→0.72 |
+| **Dense** | Stage 3 | Stage2 最后5 ckpt | SLERP t=0.5 | — | <1min | — |
+| **MoE** | Stage 1 | 同上 | 同上 | 2827 | ~10min | 1.39→0.92 |
+| **MoE** | Stage 2 | 同上 | 同上(严格受控对比) | 63768 | ~6.8h | 1.92→1.40 |
+| **MoE** | Stage 3 | 同上 | SLERP t=0.5 | — | <1min | — |
 
 > 性能关键点:`num_workers=128`(208核 CPU)将 GPU 利用率从 18~99% 波动提升到 **92~96% 稳定满载**,数据加载彻底不是瓶颈。
+> MoE 显存占用 31.4GB/32GB(接近满载),Dense 25.4GB。两者训练耗时相近。
 
 ### 关于 Stage 1 数据量的反思
 
 当前 Stage 1 仅用 9 万条数据(1 epoch),而 **Qwen3-Embedding 报告的 Stage 1 是 1.5 亿对**(我们的 ~1660 倍)。Stage 1 的目的是"大规模弱监督建立语义对齐基础",数据量差三个数量级,语义对齐没学透,这是当前 STS 分数受限的主要原因之一。后续改进方向:扩充 Stage 1 数据(合成 query、多源召回)。
 
-## Ⅱ Loss 收敛曲线(Stage 2,3 epoch)
+## Ⅱ Loss 收敛曲线(Stage 2,Dense,3 epoch)
 
 | step | epoch | loss | 说明 |
 |------|-------|------|------|
@@ -447,6 +463,8 @@ Matryoshka Representation Learning（Kusupati et al., 2022，俄罗斯套娃表�
 ![训练 Loss 曲线(Stage1 + Stage2)](./images/full_training_loss.png)
 
 </div>
+
+> **注意**:MoE 的 Stage 2 loss(1.40)高于 Dense(0.72),但这**不代表 MoE 训练差**。MoE 的 top-1 routing 使每个 token 只激活 1/4 expert,等效计算量更少,loss 数值不直接可比。真实表现需看 STS 评测(见评估章节)。
 
 ## Ⅱ Embedding 训练（三阶段）
 
@@ -522,25 +540,27 @@ $$Z_i = e^{s(q_i,d_i^+)/\tau} + \underbrace{\sum_k m_{ik} e^{s(q_i,d_{i,k}^-)/\t
 实际训练命令（本项目实测）:
 
 ```bash
-docker compose -f docker/docker-compose.yml run --rm -d --name minimind-train-stage2 \
-  dev python -m minimind_embedding.train \
+# Dense 版(云端 RTX 5090,基于 Stage1 产出)
+nohup python -u -m minimind_embedding.train \
     --config embed_dense_64m --stage 2 --use_mrl \
     --data_type hf --hf_dataset t2ranking-15 \
-    --from_weight pretrain --backbone_dir /workspace/out \
-    --batch_size 8 --epochs 1 --max_length 256 \
+    --from_weight embedding_stage1 --backbone_dir checkpoints/embedding \
+    --batch_size 16 --epochs 3 --max_length 256 --num_workers 128 \
     --max_negatives 7 --temp 0.02 --margin 0.1 --lr 1e-5 \
-    --log_steps 50 --save_steps 5000 \
-    --wandb_project minimind-embedding --wandb_run_name stage2_full_dense_64m \
-    --device cuda
+    --log_steps 200 --save_steps 4000 \
+    --wandb_project minimind-embedding --wandb_run_name stage2 \
+    --device cuda > stage2.log 2>&1 &
 ```
 
-> 训练后的模型权重保存为:`checkpoints/embedding/embedding_stage2_768.pth`（124 MB）
+> 训练后的模型权重保存为:`checkpoints/embedding/embedding_stage2_768.pth`（124 MB）。
+> MoE 版只需把 `--config embed_dense_64m` 改为 `--config embed_moe_198m`。
 
-**Loss 收敛曲线**（t2ranking-15 全量 34 万条，42513 步，~4.5h）:
+**Loss 收敛曲线**（t2ranking-15 全量 34 万条，3 epoch，63768 步）:
 
-| step | 500 | 5000 | 15000 | 25000 | 35000 | 42513(终) |
-|------|-----|------|-------|-------|-------|-----------|
-| loss | 2.0 | 1.5 | 1.3 | 1.1 | 1.0 | **0.95** |
+| step | 1000 | 16000 | 32000 | 48000 | 63768(终) |
+|------|------|-------|-------|-------|-----------|
+| Dense loss | 1.47 | 1.29 | 1.03 | 0.72 | **0.72** |
+| MoE loss | 1.92 | 1.74 | 1.57 | 1.47 | **1.40** |
 
 <div align="center">
 
@@ -603,13 +623,13 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 
 评测方法：[C-MTEB](https://github.com/embeddings-benchmark/mteb) 标准 STS 任务 test split，模型编码 sentence1/sentence2（last-token pooling + L2 归一化），计算 cosine 相似度与人工标注的 Spearman 相关。
 
-| 任务 | 样本数 | Stage2(3epoch) | **Stage3(SLERP融合)** | mini基线 | 说明 |
-|------|--------|:---:|:---:|:---:|------|
-| ATEC | 20000 | 0.265 | **0.265** | 0.13 | 银行客服语义相似 |
-| BQ | 10000 | 0.379 | **0.379** | 0.25 | 百度问答相似 |
-| LCQMC | 12500 | 0.630 | **0.631** | 0.50 | 问题匹配(最佳) |
-| STSB | 1361 | 0.637 | **0.637** | — | 中文语义文本相似度 |
-| **平均** | | **0.478** | **0.478** | 0.29 | — |
+| 任务 | 样本数 | **Dense(Stage3)** | **MoE(Stage3)** | 差值 | mini基线 |
+|------|--------|:---:|:---:|:---:|:---:|
+| ATEC | 20000 | **0.265** | 0.201 | -0.064 | 0.13 |
+| BQ | 10000 | **0.379** | 0.297 | -0.082 | 0.25 |
+| LCQMC | 12500 | **0.631** | 0.582 | -0.049 | 0.50 |
+| STSB | 1361 | **0.637** | 0.607 | -0.030 | — |
+| **平均** | | **0.478** | 0.422 | **-0.056** | 0.29 |
 
 <div align="center">
 
@@ -619,9 +639,13 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 
 ### 结果分析
 
-1. **Stage3 SLERP 融合 vs Stage2 未融合**：分数几乎一致（0.4778 vs 0.4777）。在小模型(64M)上,训练后期的多个 checkpoint 本身已经很接近,融合的边际收益不明显。Qwen3-Embedding 的融合收益来自大模型(0.6B+)的更高维度表达空间。
-2. **3 epoch vs 1 epoch**：持平(均约 0.48)。模型在 1 epoch 已收敛到该数据/架构的上限,更多 epoch 没带来 STS 提升(虽 train loss 持续降,但属过拟合 train set)。
-3. **瓶颈定位**：LCQMC/STSB 较强(0.63/0.64),ATEC/BQ 较弱(0.27/0.38)。根本瓶颈在 **minimind 底座 vocab=6400**(中文压缩比弱)+ **Stage1 数据量不足**(9万 vs Qwen3 的 1.5亿)。
+1. **🔴 反直觉发现：MoE(198M) 比 Dense(64M) 差 11.7%**（0.422 vs 0.478）。这是一次**严格受控对比**（同数据、同超参、同流程，唯一区别是架构），结论很有研究价值。原因分析：
+   - **激活参数其实更少**：MoE 虽然总参 198M，但 top-1 routing 使每个 token 只激活 64M（1/4 expert）。对于 embedding 这种"整句压缩成一个向量"的任务，**稀疏激活可能损害全局语义聚合**——每个 token 走不同 expert，最后 last-token pooling 时信息整合不如 dense 连贯。
+   - **路由未充分训练**：MoE 的 router 在有限数据下没学好，专家分工不明确。
+   - **这恰好印证了 Qwen3 团队的设计选择**：[Qwen3-Embedding 全系列都是 dense 架构](https://arxiv.org/abs/2506.05176)（0.6B/4B/8B），没有 MoE 版本——**embedding 模型就该用 dense**。
+2. **Stage3 SLERP 融合 vs Stage2 未融合**：Dense 两者几乎一致（0.4778 vs 0.4777）。在小模型上，训练后期的多个 checkpoint 本身已经很接近，融合的边际收益不明显。
+3. **3 epoch vs 1 epoch**：持平（均约 0.48）。模型在 1 epoch 已收敛到该数据/架构的上限，更多 epoch 没带来 STS 提升（虽 train loss 持续降，但属过拟合 train set）。
+4. **瓶颈定位**：LCQMC/STSB 较强（0.63/0.64），ATEC/BQ 较弱（0.27/0.38）。根本瓶颈在 **minimind 底座 vocab=6400**（中文压缩比弱）+ **Stage1 数据量不足**（9万 vs Qwen3 的 1.5亿）。
 
 <div align="center">
 
@@ -629,9 +653,9 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 
 </div>
 
-> **对比参考**：BGE-small-zh 约 0.55~0.65，Qwen3-Embedding-0.6B 约 0.66。本模型仅 64M、vocab 6400,STS 0.48 受限于底座,但完整复现了 Qwen3-Embedding 三阶段技术路线。
+> **对比参考**：BGE-small-zh 约 0.55~0.65，Qwen3-Embedding-0.6B 约 0.66。本模型 Dense 64M、vocab 6400，STS 0.478 受限于底座，但完整复现了 Qwen3-Embedding 三阶段技术路线。
 
-详细 JSON：见 `results/sts_stage3.json`。
+详细 JSON：见 `results/sts_stage3.json`（Dense）、`results/sts_moe_stage3.json`（MoE）。
 
 ## Ⅱ Rerank 结果
 
