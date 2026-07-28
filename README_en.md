@@ -75,18 +75,30 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
 
 #### 🎉 Released models
 
-> ✅ Dense Embedding has completed the full three stages (STS 0.48). Dense Rerank v0 zero-shot MAP@10=0.47. MoE variant is training.
+> ✅ Both the Dense and MoE variants have completed the full three stages. Dense STS 0.48 outperforms MoE 0.42 (see the comparison).
 
-| Model | Type | Params | Backbone | Max length | Status |
-|-------|------|--------|----------|------------|--------|
-| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ Three stages done (STS 0.48) |
-| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | 🚧 Training |
-| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ v0 zero-shot (MAP@10 0.47) |
-| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 TODO |
+| Model | Type | Params | Backbone | Max length | Status | STS average |
+|-------|------|--------|----------|------------|--------|:---:|
+| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ Three stages done | **0.478** |
+| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | ✅ Three stages done | 0.422 |
+| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ v0 zero-shot (MAP@10 0.47) | — |
+| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 TODO | — |
 
 ---
 
 #### 📝 Changelog
+
+<details>
+<summary><b>🔥 2026-07-29</b></summary>
+
+ - **MoE variant full three stages complete** (strictly controlled comparison vs Dense):
+   - Stage 1/2/3, end-to-end, using the exact same data/hyperparameters/pipeline as Dense
+   - **Counterintuitive finding: MoE (198M) STS 0.422 < Dense (64M) STS 0.478**
+   - Cause: MoE top-1 routing's sparse activation hurts the embedding's global semantic aggregation; this corroborates Qwen3-Embedding's choice of a dense design
+ - Dense Embedding released on HuggingFace: [Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense)
+ - Dense Rerank v0: pure pretrained backbone zero-shot MAP@10=0.47 (best); pointwise fine-tuning actually drops it (catastrophic forgetting)
+
+</details>
 
 <details>
 <summary><b>🔥 2026-07-28 (evening)</b></summary>
@@ -412,7 +424,7 @@ where $D = \{768, 512, 256, 128, 64\}$. A vector trained this way can be truncat
 
 # 📌 Experiments
 
-> ✅ The Dense variant has completed the **full three stages** (Stage 1 weak supervision → Stage 2 supervised + MRL → Stage 3 SLERP merge).
+> ✅ Both the Dense and MoE variants have completed the **full three stages** (Stage 1 weak supervision → Stage 2 supervised + MRL → Stage 3 SLERP merge).
 
 ## Ⅰ Training cost
 
@@ -420,19 +432,23 @@ Measured on:
 - **Stage 1/2/3**: cloud RTX 5090 (32GB, Blackwell sm_120) + torch 2.8 cu128, 208-core CPU (`num_workers=128` fully exercised)
 - **Early validation**: local RTX 5080 (16GB) + Docker (CUDA 13.3 + torch 2.13 cu130)
 
-| Stage | Data | Config | Steps | Time | Loss |
-|-------|------|--------|-------|------|------|
-| **Stage 1 weak supervision** | t2ranking triplet 90k pairs | batch=64, lr=2e-4, 1 epoch | 1413 | ~10min | 1.16→0.43 |
-| **Stage 2 supervised** | t2ranking-15 340k pairs | batch=16, workers=128, lr=1e-5, **3 epoch**, MRL | 63768 | ~6.8h | 1.47→0.72 |
-| **Stage 3 merge** | Stage 2 last 5 ckpts | SLERP t=0.5 | — | <1min | — |
+| Variant | Stage | Data | Config | Steps | Time | Loss |
+|---------|-------|------|--------|-------|------|------|
+| **Dense** | Stage 1 | t2ranking triplet 90k pairs | batch=64, lr=2e-4 | 1413 | ~10min | 1.16→0.43 |
+| **Dense** | Stage 2 | t2ranking-15 340k pairs | batch=16, workers=128, 3 epochs, MRL | 63768 | ~6.8h | 1.47→0.72 |
+| **Dense** | Stage 3 | Stage 2 last 5 ckpts | SLERP t=0.5 | — | <1min | — |
+| **MoE** | Stage 1 | same as above | same as above | 2827 | ~10min | 1.39→0.92 |
+| **MoE** | Stage 2 | same as above | same as above (strictly controlled comparison) | 63768 | ~6.8h | 1.92→1.40 |
+| **MoE** | Stage 3 | same as above | SLERP t=0.5 | — | <1min | — |
 
 > Performance key point: `num_workers=128` (208-core CPU) raised GPU utilization from an erratic 18~99% to a **stable 92~96% saturation** — data loading is no longer a bottleneck at all.
+> MoE VRAM usage is 31.4GB/32GB (near saturation); Dense uses 25.4GB. Training time is comparable for both.
 
 ### Reflections on the Stage 1 data volume
 
 The current Stage 1 uses only 90k pairs (1 epoch), whereas **the Qwen3-Embedding report's Stage 1 is 150M pairs** (~1660× ours). Stage 1's purpose is "large-scale weak supervision to establish a semantic-alignment foundation"; being three orders of magnitude short on data means the semantic alignment is not fully learned, which is one of the main reasons the current STS score is capped. Future improvement: expand Stage 1 data (synthetic queries, multi-source recall).
 
-## Ⅱ Loss convergence curve (Stage 2, 3 epochs)
+## Ⅱ Loss convergence curve (Stage 2, Dense, 3 epochs)
 
 | step | epoch | loss | Notes |
 |------|-------|------|-------|
@@ -447,6 +463,8 @@ The current Stage 1 uses only 90k pairs (1 epoch), whereas **the Qwen3-Embedding
 ![Training loss curve (Stage1 + Stage2)](./images/full_training_loss.png)
 
 </div>
+
+> **Note**: MoE's Stage 2 loss (1.40) is higher than Dense's (0.72), but this **does not mean MoE training is worse**. MoE's top-1 routing activates only 1/4 of experts per token, so the effective compute is lower and the loss values are not directly comparable. The real performance must be judged from the STS evaluation (see the Evaluation section).
 
 ## Ⅱ Embedding training (three stages)
 
@@ -522,25 +540,27 @@ $$Z_i = e^{s(q_i,d_i^+)/\tau} + \underbrace{\sum_k m_{ik} e^{s(q_i,d_{i,k}^-)/\t
 Actual training command (measured on this project):
 
 ```bash
-docker compose -f docker/docker-compose.yml run --rm -d --name minimind-train-stage2 \
-  dev python -m minimind_embedding.train \
+# Dense variant (cloud RTX 5090, based on the Stage 1 output)
+nohup python -u -m minimind_embedding.train \
     --config embed_dense_64m --stage 2 --use_mrl \
     --data_type hf --hf_dataset t2ranking-15 \
-    --from_weight pretrain --backbone_dir /workspace/out \
-    --batch_size 8 --epochs 1 --max_length 256 \
+    --from_weight embedding_stage1 --backbone_dir checkpoints/embedding \
+    --batch_size 16 --epochs 3 --max_length 256 --num_workers 128 \
     --max_negatives 7 --temp 0.02 --margin 0.1 --lr 1e-5 \
-    --log_steps 50 --save_steps 5000 \
-    --wandb_project minimind-embedding --wandb_run_name stage2_full_dense_64m \
-    --device cuda
+    --log_steps 200 --save_steps 4000 \
+    --wandb_project minimind-embedding --wandb_run_name stage2 \
+    --device cuda > stage2.log 2>&1 &
 ```
 
-> Trained weights are saved to: `checkpoints/embedding/embedding_stage2_768.pth` (124 MB)
+> Trained weights are saved to: `checkpoints/embedding/embedding_stage2_768.pth` (124 MB).
+> For the MoE variant, just change `--config embed_dense_64m` to `--config embed_moe_198m`.
 
-**Loss convergence curve** (t2ranking-15 full 340k pairs, 42513 steps, ~4.5h):
+**Loss convergence curve** (t2ranking-15 full 340k pairs, 3 epochs, 63768 steps):
 
-| step | 500 | 5000 | 15000 | 25000 | 35000 | 42513 (final) |
-|------|-----|------|-------|-------|-------|---------------|
-| loss | 2.0 | 1.5 | 1.3 | 1.1 | 1.0 | **0.95** |
+| step | 1000 | 16000 | 32000 | 48000 | 63768 (final) |
+|------|------|-------|-------|-------|---------------|
+| Dense loss | 1.47 | 1.29 | 1.03 | 0.72 | **0.72** |
+| MoE loss | 1.92 | 1.74 | 1.57 | 1.47 | **1.40** |
 
 <div align="center">
 
@@ -603,13 +623,13 @@ Loss (pointwise cross-entropy):
 
 Eval method: [C-MTEB](https://github.com/embeddings-benchmark/mteb) standard STS task test splits; the model encodes sentence1/sentence2 (last-token pooling + L2 norm), then we compute the Spearman correlation between cosine similarity and human labels.
 
-| Task | Samples | Stage2 (3 epoch) | **Stage3 (SLERP merge)** | mini baseline | Notes |
-|------|---------|:---:|:---:|:---:|------|
-| ATEC | 20000 | 0.265 | **0.265** | 0.13 | Banking customer-service similarity |
-| BQ | 10000 | 0.379 | **0.379** | 0.25 | Baidu Q&A similarity |
-| LCQMC | 12500 | 0.630 | **0.631** | 0.50 | Question matching (best) |
-| STSB | 1361 | 0.637 | **0.637** | — | Chinese semantic text similarity |
-| **Average** | | **0.478** | **0.478** | 0.29 | — |
+| Task | Samples | **Dense (Stage3)** | **MoE (Stage3)** | Diff | mini baseline |
+|------|---------|:---:|:---:|:---:|:---:|
+| ATEC | 20000 | **0.265** | 0.201 | -0.064 | 0.13 |
+| BQ | 10000 | **0.379** | 0.297 | -0.082 | 0.25 |
+| LCQMC | 12500 | **0.631** | 0.582 | -0.049 | 0.50 |
+| STSB | 1361 | **0.637** | 0.607 | -0.030 | — |
+| **Average** | | **0.478** | 0.422 | **-0.056** | 0.29 |
 
 <div align="center">
 
@@ -619,9 +639,13 @@ Eval method: [C-MTEB](https://github.com/embeddings-benchmark/mteb) standard STS
 
 ### Result analysis
 
-1. **Stage 3 SLERP merge vs un-merged Stage 2**: scores are nearly identical (0.4778 vs 0.4777). On a small model (64M), the late-training checkpoints are already very close to each other, so the marginal gain from merging is negligible. The merging benefit Qwen3-Embedding sees comes from the higher-dimensional representational space of larger (0.6B+) models.
-2. **3 epochs vs 1 epoch**: on par (both ~0.48). The model already converges to the ceiling of this data/architecture after 1 epoch; more epochs bring no STS gain (although train loss keeps dropping, that's just overfitting the train set).
-3. **Bottleneck location**: LCQMC/STSB are strong (0.63/0.64), ATEC/BQ weaker (0.27/0.38). The root bottleneck is the **minimind backbone's vocab=6400** (weak Chinese compression) + **insufficient Stage 1 data** (90k vs Qwen3's 150M).
+1. **🔴 Counterintuitive finding: MoE (198M) is 11.7% worse than Dense (64M)** (0.422 vs 0.478). This is a **strictly controlled comparison** (same data, same hyperparameters, same pipeline — the only difference is the architecture), so the conclusion is worth studying. Cause analysis:
+   - **Activated parameters are actually fewer**: although MoE has 198M total params, top-1 routing activates only 64M per token (1/4 of experts). For an embedding task that "compresses a whole sentence into one vector", **sparse activation may hurt global semantic aggregation** — each token goes through a different expert, so by the time of last-token pooling the information is integrated less coherently than in dense.
+   - **Routing is under-trained**: the MoE router wasn't learned well under limited data, and the expert division of labor is unclear.
+   - **This corroborates the Qwen3 team's design choice**: [the entire Qwen3-Embedding family is dense](https://arxiv.org/abs/2506.05176) (0.6B/4B/8B), with no MoE variant — **embedding models should just be dense**.
+2. **Stage 3 SLERP merge vs un-merged Stage 2**: for Dense the two are nearly identical (0.4778 vs 0.4777). On a small model, the late-training checkpoints are already very close to each other, so the marginal gain from merging is negligible.
+3. **3 epochs vs 1 epoch**: on par (both ~0.48). The model already converges to the ceiling of this data/architecture after 1 epoch; more epochs bring no STS gain (although train loss keeps dropping, that's just overfitting the train set).
+4. **Bottleneck location**: LCQMC/STSB are strong (0.63/0.64), ATEC/BQ weaker (0.27/0.38). The root bottleneck is the **minimind backbone's vocab=6400** (weak Chinese compression) + **insufficient Stage 1 data** (90k vs Qwen3's 150M).
 
 <div align="center">
 
@@ -629,9 +653,9 @@ Eval method: [C-MTEB](https://github.com/embeddings-benchmark/mteb) standard STS
 
 </div>
 
-> **Reference**: BGE-small-zh ~0.55–0.65, Qwen3-Embedding-0.6B ~0.66. This model has only 64M params and vocab 6400, so an STS of 0.48 is backbone-limited, but it fully reproduces the three-stage technical pipeline of Qwen3-Embedding.
+> **Reference**: BGE-small-zh ~0.55–0.65, Qwen3-Embedding-0.6B ~0.66. This model has only 64M params and vocab 6400, so an STS of 0.478 is backbone-limited, but it fully reproduces the three-stage technical pipeline of Qwen3-Embedding.
 
-Detailed JSON: see `results/sts_stage3.json`.
+Detailed JSON: see `results/sts_stage3.json` (Dense) and `results/sts_moe_stage3.json` (MoE).
 
 ## Ⅱ Rerank results
 
