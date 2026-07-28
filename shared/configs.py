@@ -8,11 +8,15 @@ import os
 
 from shared.model import MiniMindEmbedConfig, MiniMindRerankConfig
 
-# 两个特殊 token 的 id(追加到 vocab 6400 之后,用于 rerank)
-YES_TOKEN_ID = 6400
-NO_TOKEN_ID = 6401
-# 扩展后词表大小
-EXTENDED_VOCAB_SIZE = 6402
+# Rerank 的 yes/no 目标 token:
+# 改用词表里现成的 "是"(id=357)/"否"(id=1332),而非新增 <yes>/<no>。
+# 原因:新增 token 的 embedding 是随机初始化的,预训练从未见过,
+#       模型难以在低 lr 下学好"相关性 → 新 token"的映射(实测会学反)。
+#       "是"/"否" 是单 token、语义明确、预训练见过,直接复用最稳。
+YES_TOKEN_ID = 357   # "是"
+NO_TOKEN_ID = 1332   # "否"
+# 词表大小保持 minimind 原生 6400(不扩展)
+EXTENDED_VOCAB_SIZE = 6400
 
 # 通用底座超参(对齐 minimind-3)
 _BASE = dict(
@@ -21,7 +25,7 @@ _BASE = dict(
     num_attention_heads=8,
     num_key_value_heads=4,
     head_dim=96,
-    vocab_size=EXTENDED_VOCAB_SIZE,  # 扩展到 6402(加 <yes>/<no>)
+    vocab_size=EXTENDED_VOCAB_SIZE,  # 6400,不扩展
     bos_token_id=1,
     eos_token_id=2,
     flash_attn=True,

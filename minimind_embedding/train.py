@@ -234,12 +234,17 @@ def compute_stage2_loss(model, batch, device, args):
 def save_checkpoint(model, args, config, step, tokenizer):
     os.makedirs(args.save_dir, exist_ok=True)
     moe = "_moe" if config.use_moe else ""
-    name = f"embedding_stage{args.stage}_{config.hidden_size}{moe}.pth"
-    path = os.path.join(args.save_dir, name)
     raw = model.module if hasattr(model, "module") else model
     state = {k: v.half().cpu() for k, v in raw.state_dict().items()}
-    torch.save(state, path)
-    print(f"[save] {path} (step {step})")
+    # 1) 带 step 后缀的版本(供 stage3 SLERP 融合用,不覆盖)
+    step_name = f"embedding_stage{args.stage}_{config.hidden_size}{moe}_step{step}.pth"
+    step_path = os.path.join(args.save_dir, step_name)
+    torch.save(state, step_path)
+    # 2) 最新版(latest,覆盖,便于 stage 链式衔接)
+    latest_name = f"embedding_stage{args.stage}_{config.hidden_size}{moe}.pth"
+    latest_path = os.path.join(args.save_dir, latest_name)
+    torch.save(state, latest_path)
+    print(f"[save] {step_path} + latest -> {latest_path}")
 
 
 def main():

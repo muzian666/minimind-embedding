@@ -31,8 +31,9 @@ DEFAULT_QUERY_INSTRUCTION = (
 
 
 def load_tokenizer(padding_side: str = "left"):
-    """加载 minimind tokenizer 并追加 <yes>/<no>。
+    """加载 minimind tokenizer(原生 vocab=6400,不扩展)。
 
+    rerank 用的 "是"/"否" 是词表现成 token(id 357/1332),无需追加。
     参数:
         padding_side: 'left'(默认,推荐)或 'right'。last-token pooling
                       在左 padding 下 O(1) 取值,正确且高效。
@@ -41,14 +42,6 @@ def load_tokenizer(padding_side: str = "left"):
         _MINIMIND_TOKENIZER_PATH,
         trust_remote_code=True,
     )
-    # 追加 <yes>/<no>
-    num_added = tokenizer.add_special_tokens(
-        {"additional_special_tokens": EXTRA_SPECIAL_TOKENS}
-    )
-    if num_added > 0:
-        # 确认 id 符合预期
-        assert tokenizer.convert_tokens_to_ids(YES_TOKEN) == YES_TOKEN_ID
-        assert tokenizer.convert_tokens_to_ids(NO_TOKEN) == NO_TOKEN_ID
     tokenizer.padding_side = padding_side
     return tokenizer
 
@@ -124,8 +117,7 @@ def _append_eos_and_pad(tokenizer, texts, max_length, return_tensors):
 # ---------------------------------------------------------------------------
 RERANK_PROMPT_TEMPLATE = (
     "<|im_start|>system\n"
-    "Judge whether the Document meets the requirements based on the Query. "
-    'Only output "yes" or "no".'
+    "判断 Document 是否符合 Query 的需求,只回复'是'或'否'。"
     "<|im_end|>\n"
     "<|im_start|>user\n"
     "<Query>: {query}\n"
@@ -133,8 +125,9 @@ RERANK_PROMPT_TEMPLATE = (
     "<|im_start|>assistant\n"
     "<think>\n\n</think>\n\n"
 )
-# 注意:末尾 assistant 开头后,模型应输出 <yes> 或 <no> 作为下一个 token。
-# minimind tokenizer_config 的 chat_template 已支持 <think> 标签。
+# 注意:末尾 assistant 开头后,模型应输出 "是"(id=357) 或 "否"(id=1332) 作为下一个 token。
+# 经验证:此 prompt 下纯预训练底座就有 MAP@10=0.47 的判别力(POS 是概率 0.84 > NEG 0.78)。
+# pointwise 微调反而会破坏该判别力(灾难性遗忘),故当前版本直接用预训练底座做 reranker。
 
 
 def build_rerank_inputs(

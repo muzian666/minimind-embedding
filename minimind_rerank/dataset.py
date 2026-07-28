@@ -109,12 +109,31 @@ class HFRerankDataset(Dataset):
         return self._samples[idx]
 
     # ---- adapters ----
+    @staticmethod
+    def _as_list(val):
+        """把值转成 list。兼容:list / str-list(如 "['a','b']") / 单个 str。"""
+        if isinstance(val, list):
+            return val
+        if isinstance(val, str):
+            s = val.strip()
+            # 字符串形式的 list:"['a', 'b']" 或 '["a","b"]'
+            if s.startswith("[") and s.endswith("]"):
+                import ast
+                try:
+                    parsed = ast.literal_eval(s)
+                    return parsed if isinstance(parsed, list) else [val]
+                except Exception:
+                    return [val]
+            return [val]
+        return []
+
     def _adapt_t2reranking(self, row):
-        """C-MTEB/T2Reranking: {query, positive:[...], negative:[...]} → 每条展开。"""
+        """C-MTEB/T2Reranking: {query, positive, negative} → 每条展开。
+        positive/negative 可能是 list 或字符串形式的 list。"""
         q = row.get("query", "")
-        for pos in row.get("positive", []):
+        for pos in self._as_list(row.get("positive", [])):
             yield q, pos, 1
-        for neg in row.get("negative", []):
+        for neg in self._as_list(row.get("negative", [])):
             yield q, neg, 0
 
     def _adapt_mmarco_triplet(self, row):
