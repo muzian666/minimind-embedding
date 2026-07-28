@@ -116,7 +116,7 @@
 <summary><b>🔥 2026-07-27</b></summary>
 
  - 项目启动：完成整体架构设计与 M1 里程碑（共享底座 + Dense Embedding 训练链路跑通）。
- - 实现 `shared/` 共享层：MiniMindForEmbedding / MiniMindForRerank 模型类、last-token pooling、InfoNCE 带假负样本 mask、MRL 损失、配置预设、tokenizer 适配（追加 `<yes>`/`<no>` 特殊 token）。
+ - 实现 `shared/` 共享层：MiniMindForEmbedding / MiniMindForRerank 模型类、last-token pooling、InfoNCE 带假负样本 mask、MRL 损失、配置预设、tokenizer 适配（复用现成的 `是`/`否` token）。
  - 实现 `minimind_embedding/` 训练模块：三阶段训练脚本（stage1 弱监督 / stage2 监督+MRL）、本地 jsonl 与 HuggingFace datasets 双数据源、demo smoke test 数据。
  - 搭建 Docker 环境（CUDA 13.3 + torch 2.13 cu130 + mteb 2.18 + sentence-transformers 5.6），在 RTX 5080 上验证 smoke test：loss 从 1.53 正常下降至 0。
 
@@ -262,16 +262,16 @@ docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embe
 
 ## Ⅰ Tokenizer
 
-本项目**直接复用 MiniMind 的 BPE tokenizer**（vocab=6400，中英文混合，ByteLevel）。详见 [MiniMind Tokenizer 说明](https://github.com/jingyaogong/minimind)。
+本项目**直接复用 MiniMind 的 BPE tokenizer**（vocab=6400，中英文混合，ByteLevel），**不扩展词表**。详见 [MiniMind Tokenizer 说明](https://github.com/jingyaogong/minimind)。
 
-唯一的扩展：为支持 Rerank 模型的 pointwise yes/no 判定，追加了两个特殊 token：
+Rerank 模型复用词表中现成的中文 token：
 
 | Token | ID | 用途 |
 |-------|----|----|
-| `<yes>` | 6400 | Rerank 正样本目标 token |
-| `<no>` | 6401 | Rerank 负样本目标 token |
+| `是` | 357 | Rerank 正样本目标 token（相关） |
+| `否` | 1332 | Rerank 负样本目标 token（不相关） |
 
-词表由 6400 扩展到 **6402**，embedding 层与 lm_head 自动 resize。
+> 💡 **为什么用现成的"是"/"否"而非新增 `<yes>`/`<no>`**：新增 token 的 embedding 是随机初始化的，预训练从未见过，64M 小模型难以学好"相关性 → 新 token"的映射（实测会学反）。"是"/"否"是单 token、语义明确、预训练见过无数次，直接复用最稳。
 
 ## Ⅱ Embedding 训练数据格式
 
@@ -341,10 +341,10 @@ docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embe
 
 | Model Name | params | len_vocab | max_pos | rope_theta | n_layers | d_model | kv_heads | q_heads | note |
 |------------|--------|-----------|---------|------------|----------|---------|----------|---------|------|
-| minimind-embedding-dense | 64M | 6402 | 32768 | 1e6 | 8 | 768 | 4 | 8 | Dense + last-token pool + MRL |
-| minimind-embedding-moe | 198M-A64M | 6402 | 32768 | 1e6 | 8 | 768 | 4 | 8 | 4 experts / top-1 |
-| minimind-rerank-dense | 64M | 6402 | 32768 | 1e6 | 8 | 768 | 4 | 8 | Dense + pointwise yes/no |
-| minimind-rerank-moe | 198M-A64M | 6402 | 32768 | 1e6 | 8 | 768 | 4 | 8 | 4 experts / top-1 |
+| minimind-embedding-dense | 64M | 6400 | 32768 | 1e6 | 8 | 768 | 4 | 8 | Dense + last-token pool + MRL |
+| minimind-embedding-moe | 198M-A64M | 6400 | 32768 | 1e6 | 8 | 768 | 4 | 8 | 4 experts / top-1 |
+| minimind-rerank-dense | 64M | 6400 | 32768 | 1e6 | 8 | 768 | 4 | 8 | Dense + pointwise yes/no |
+| minimind-rerank-moe | 198M-A64M | 6400 | 32768 | 1e6 | 8 | 768 | 4 | 8 | 4 experts / top-1 |
 
 > 所有模型的 `max_position_embeddings=32768`（底座原生支持），本项目训练时使用 `max_length=8192`，无需任何 RoPE 外推。如需扩展到 32768，可启用底座内置的 YaRN 外推（factor=16）。
 
@@ -572,7 +572,7 @@ python scripts/merge_models.py \
 
 ### 1' Pointwise yes/no 微调
 
-**理念**（Qwen3-Reranker 同款）：把"判断 query-doc 是否相关"建模成下一个 token 预测——让模型在 `[Query]\n[Document]` 之后输出 `<yes>` 或 `<no>`。复用预训练的 lm_head，**不引入任何新参数**。
+**理念**（Qwen3-Reranker 同款）：把"判断 query-doc 是否相关"建模成下一个 token 预测——让模型在 `[Query]\n[Document]` 之后输出 `是` 或 `否`。复用预训练的 lm_head，**不引入任何新参数**。
 
 Prompt 模板：
 
@@ -701,8 +701,8 @@ A: Dense 64M 版本完全可以（显存占用 ~12-14GB）。MoE 198M 长序列�
 **Q: 为什么温度 τ=0.02？**
 A: Qwen3-Embedding 报告未公布具体值，社区复现常用 0.02~0.05。0.02 是 InfoNCE 的经验最佳点（使相似度差异足够尖锐，便于区分正负样本）。
 
-**Q: 为什么追加 `<yes>`/`<no>` 而不直接用 "yes"/"no"？**
-A: MiniMind 的 BPE 词表（vocab=6400）中没有可靠的 "yes"/"no" 单 token（会被切成子词）。追加特殊 token 保证 Rerank 的目标 token 是单个、确定的，避免 BPE 切分的不确定性。
+**Q: 为什么用"是"/"否"而不是新增 `<yes>`/`<no>`？**
+A: 实验发现，新增 token 的 embedding 是随机初始化的，64M 小模型在低 lr 下难以学好"相关性 → 新 token"的映射，导致 rerank 分数反而下降（灾难性遗忘）。改用词表中现成的 `是`(id=357)/`否`(id=1332)——它们是单 token、语义明确、预训练见过无数次的中文词，直接复用效果最好（零样本 MAP@10 就达 0.47）。
 
 </details>
 
