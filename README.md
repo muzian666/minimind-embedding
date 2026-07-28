@@ -350,12 +350,20 @@ docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embe
 
 ## Last-token Pooling 原理
 
+> 🧒 **一句话理解**：句子就像一队人排队，最后一个人（EOS）通过"传话游戏"听到了前面所有人说的话，所以他一个人就能代表整句话的意思。
+
+<div align="center">
+
+![Last-Token Pooling 原理](./images/concept_last_token_pool.png)
+
+</div>
+
 为什么 causal（单向）语言模型也能做 embedding？这是 Qwen3-Embedding 给出的关键洞察：
 
-传统的 BERT 风格 encoder 用**双向注意力 + mean/CLS pooling**，而 Qwen3-Embedding 反其道而行，**保留 causal（单向）注意力，取最后一个 token 的 hidden state 作为句向量**。原因在于：
+传统的 BERT 风格 encoder 用**双向注意力 + mean/CLS pool**（每个人都能看到所有人，取平均），而 Qwen3-Embedding 反其道而行，**保留 causal（单向）注意力，只取最后一个 token（EOS）的 hidden state 作为整句向量**。原因在于：
 
 1. **权重复用最大化**：causal LM 的预训练分布与生成模型完全一致，可直接加载预训练权重，无需重新预热。双向 attention 会破坏预训练学到的位置先验。
-2. **最后一个 token "看过"整个序列**：在 causal attention 下，位置 $T$ 的 token 通过注意力机制聚合了前 $T-1$ 个 token 的全部信息，天然适合作为整句的摘要表示。
+2. **最后一个 token "看过"整个序列**：在 causal attention 下（单向，只能看前面），位置 $T$ 的 token 通过注意力机制聚合了前 $T-1$ 个 token 的全部信息，就像排队末尾的人通过传话听到了前面所有人的话——他一个人就浓缩了整句的语义，天然适合作为摘要表示。
 3. **末尾追加 EOS 作为锚点**：让模型在序列末尾看到一个明确的"结束"信号，使最后一个 token 的表示更加稳定。
 
 本项目的 `shared/utils.py:last_token_pool` 严格对齐 Qwen3-Embedding-0.6B 官方实现，正确处理左/右 padding：
@@ -373,7 +381,15 @@ def last_token_pool(last_hidden_states, attention_mask):
 
 ## MRL 多维度输出原理
 
-Matryoshka Representation Learning（Kusupati et al., 2022）让一个向量在不同维度截断下都保持良好语义，类似俄罗斯套娃：
+> 🧒 **一句话理解**：就像俄罗斯套娃——大套娃里装着小套娃，每个尺寸都能用。训练出的向量也一样：768 维是"大套娃"（最准），截断到 64 维是"小套娃"（最快），每个尺寸都保持语义。
+
+<div align="center">
+
+![Matryoshka 多维度原理](./images/concept_mrl.png)
+
+</div>
+
+Matryoshka Representation Learning（Kusupati et al., 2022，俄罗斯套娃表示学习）让一个向量在不同维度截断下都保持良好语义：
 
 ```
 完整向量 [768] ──┬── 取前 512 维 → 可用于 512 维索引
@@ -382,13 +398,15 @@ Matryoshka Representation Learning（Kusupati et al., 2022）让一个向量在�
                 └── 取前  64 维 → 可用于  64 维索引(最省存储)
 ```
 
+**实战场景**：检索系统先用 64 维向量粗筛（快，从百万文档里召回几百条），再用 768 维精排（准，从几百条里选最相关的）——又快又准。
+
 训练时对每个维度切片**分别计算 InfoNCE 损失**，再求平均：
 
 ```math
 \mathcal{L}_{MRL} = \frac{1}{|D|}\sum_{d \in D} \mathcal{L}_{InfoNCE}(z_{[:d]})
 ```
 
-其中 $D = \{768, 512, 256, 128, 64\}$。这样训练出的向量，截断到任意维度都可直接用于 ANN 检索（如用 64 维做粗筛、768 维做精排），存储与计算成本灵活可调。
+其中 $D = \{768, 512, 256, 128, 64\}$。这样训练出的向量，截断到任意维度都可直接用于 ANN 检索，存储与计算成本灵活可调。
 
 ---
 
@@ -432,19 +450,38 @@ Matryoshka Representation Learning（Kusupati et al., 2022）让一个向量在�
 
 ## Ⅱ Embedding 训练（三阶段）
 
-### 1' 弱监督预训练（Stage 1）
+### 1' 弱监督预训练（Stage 1）✅ 已完成
 
 **理念**：让模型先学会"什么样的文本对是语义相关的"。这一阶段使用大规模（弱标注）数据，依赖大 batch 提供足够的负样本信号，使用**标准 InfoNCE**（不带假负样本 mask——因为弱监督数据噪声大，mask 反而会误伤真负样本）。
 
-标准 InfoNCE 损失：
+#### InfoNCE 是什么？（小学生版）
+
+> 🧒 **类比**：想象你在玩"找朋友"游戏。给你一张照片（query），要从一堆照片里找出你的好朋友（正样本），其他人（负样本）都不是你的朋友。InfoNCE 就是训练你的"眼力"——让正确朋友的得分尽量高，陌生人的得分尽量低。
+
+<div align="center">
+
+![InfoNCE 对比学习原理](./images/concept_infonce.png)
+
+</div>
+
+**简化理解**：
+
+$$\text{loss} = -\log \frac{\text{正样本得分}}{\text{正样本得分} + \text{所有负样本得分之和}}$$
+
+- 如果模型把正样本排在第一位（得分远高于负样本），loss 接近 0（"找朋友"很准）
+- 如果模型把正样本和负样本混在一起，loss 很大（还需要练）
+
+**严格公式**（标准 InfoNCE）：
 
 ```math
 \mathcal{L}_{InfoNCE} = -\frac{1}{N}\sum_{i=1}^{N} \log \frac{\exp(s(q_i, d_i^+)/\tau)}{\exp(s(q_i, d_i^+)/\tau) + \sum_{j \neq i} \exp(s(q_i, d_j)/\tau)}
 ```
 
-其中 $s(\cdot,\cdot)$ 为 cosine 相似度，$\tau=0.02$ 为温度。
+其中 $s(\cdot,\cdot)$ 为 cosine 相似度，$\tau=0.02$ 为温度（让得分差异更尖锐：好朋友的得分要"明显"高于陌生人）。
 
-Stage 1 训练命令(本项目当前跳过 Stage 1,直接从预训练底座进入 Stage 2):
+> 💡 **温度 τ 的作用**：τ 越小，模型越"严格"——正样本必须比负样本高很多才算过关；τ 越大，越"宽容"。0.02 是经验值，让模型学得又快又稳。
+
+Stage 1 训练命令(本项目已完成,产出 `embedding_stage1_768.pth`):
 
 ```bash
 docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embedding.train \
@@ -456,19 +493,31 @@ docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embe
 
 ### 2' 监督微调（Stage 2）✅ 已完成
 
-**理念**：在高质量标注数据上精细调整，引入 hard negatives 和假负样本 mask。
+**理念**：在高质量标注数据上精细调整，引入 hard negatives（困难负样本）和**假负样本 mask**。
 
-带假负样本 mask 的 InfoNCE（Qwen3-Embedding 报告公式逐字实现）：
+#### 为什么要"假负样本 mask"？（小学生版）
+
+> 🧒 **问题**：训练时我们会把"不相关"的文本当负样本，让模型远离它。但万一这个"负样本"其实和 query 是相关的呢？比如 query 问"感冒怎么治"，负样本里混进了一条"感冒需要对症治疗，注意休息"——它明明也相关，却被当成反面教材。模型如果拼命远离它，反而学坏了！
+
+<div align="center">
+
+![假负样本 Mask 原理](./images/concept_false_neg_mask.png)
+
+</div>
+
+**Qwen3 的解决方案**：训练前先检查每个负样本——如果它和 query 的相似度**甚至比正样本还高**（超过 margin=0.1），就判定为"假负样本"，用 mask 把它屏蔽掉（不参与训练）。
+
+**mask 判定规则**：
+
+$$m_{ij} = \begin{cases} 0 & \text{if } s_{ij} > s(q_i, d_i^+) + 0.1 \quad \text{(假负样本,屏蔽)} \\ 1 & \text{otherwise} \quad \text{(真负样本,正常训练)} \end{cases}$$
+
+**带 mask 的 InfoNCE 完整损失**（Qwen3-Embedding 报告公式逐字实现）：
 
 $$\mathcal{L} = -\frac{1}{N}\sum_{i} \log \frac{e^{s(q_i,d_i^+)/\tau}}{Z_i}$$
 
-$$Z_i = e^{s(q_i,d_i^+)/\tau} + \sum_k m_{ik} e^{s(q_i,d_{i,k}^-)/\tau} + \sum_{j\neq i} m_{ij} e^{s(q_i,q_j)/\tau} + \sum_{j\neq i} m_{ij} e^{s(d_i^+,d_j)/\tau}$$
+$$Z_i = e^{s(q_i,d_i^+)/\tau} + \underbrace{\sum_k m_{ik} e^{s(q_i,d_{i,k}^-)/\tau}}_{\text{hard negatives}} + \underbrace{\sum_{j\neq i} m_{ij} e^{s(q_i,q_j)/\tau}}_{\text{批内 query-query}} + \underbrace{\sum_{j\neq i} m_{ij} e^{s(d_i^+,d_j)/\tau}}_{\text{批内 doc-doc}}$$
 
-mask factor：
-
-$$m_{ij} = \begin{cases} 0 & \text{if } s_{ij} > s(q_i, d_i^+) + 0.1 \\ 1 & \text{otherwise} \end{cases}$$
-
-直觉：如果某个候选负样本与 query 的相似度**甚至超过了正样本**（+0.1 margin），那它很可能是"假负样本"（语义上其实相关），应当从分母中屏蔽，避免对其施加错误的梯度。
+> 💡 **直觉**：分母 $Z_i$ 聚合了正样本 + 所有负样本（hard neg + 批内 neg），但每个负样本都乘了 mask $m_{ij}$——假负样本的 mask=0，自动从分母里消失，不会被错误地推远。
 
 实际训练命令（本项目实测）:
 
@@ -499,11 +548,25 @@ docker compose -f docker/docker-compose.yml run --rm -d --name minimind-train-st
 
 </div>
 
-### 3' 模型融合（Stage 3）
+### 3' 模型融合（Stage 3）✅ 已完成
 
-**理念**：对 Stage 2 训练过程中保存的最后 N 个 checkpoint 做球面线性插值（SLERP），融合多个模型的互补能力，提升鲁棒性。
+> 🧒 **一句话理解**：Stage2 训练过程中存了好几个"快照"（checkpoint），每个快照各有所长。Stage3 就是把它们"揉"在一起，取长补短，得到一个更稳的最终模型——就像把几个同学的不同答案综合起来，比任何一个人的都靠谱。
 
-> ⏳ 实现脚本 `scripts/merge_models.py` 待 M2 补充。
+**理念**：对 Stage 2 训练过程中保存的最后 N 个 checkpoint 做**球面线性插值（SLERP）**，融合多个模型的互补能力，提升鲁棒性。
+
+SLERP 的核心思想：对两个模型在同一位置的参数向量，在它们构成的"球面"上做插值。当两个向量方向接近时，退化为加权平均；方向差异大时，沿大圆弧旋转插值，保留两者的方向特征。
+
+**实际命令**（取 Stage2 最后 5 个 checkpoint 融合）：
+
+```bash
+python scripts/merge_models.py \
+    --glob "checkpoints/embedding/embedding_stage2_768_step*.pth" \
+    --last_n 5 \
+    --output checkpoints/embedding/embedding_stage3_768.pth \
+    --t 0.5
+```
+
+> **本项目实测结论**：Stage3 融合后 STS 分数（0.4778）与 Stage2 未融合（0.4777）几乎一致。在小模型（64M）上，训练后期的 checkpoint 本身已经很接近，融合的边际收益不明显；Qwen3-Embedding 的融合收益来自大模型（0.6B+）的更高维度表达空间。
 
 ## Ⅲ Rerank 训练
 
