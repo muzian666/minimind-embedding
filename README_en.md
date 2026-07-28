@@ -27,7 +27,7 @@
 </div>
 
 * Built on the open-source **[MiniMind](https://github.com/jingyaogong/minimind)** small language model (64M / 198M-A64M) as the backbone, this project trains a complete suite of **text Embedding and Rerank models from scratch**, with the technical approach fully aligned to **[Qwen3-Embedding](https://arxiv.org/abs/2506.05176)**.
-* All models support **both Dense and MoE variants**, with a maximum sequence length of **8192**, covering **Chinese and English** retrieval, STS, classification, and reranking tasks.
+* All models support **both Dense and MoE variants**, and a **strictly controlled comparison** was run under identical data/hyperparameters — with a counterintuitive conclusion: **at this small scale, Dense (64M) actually outperforms MoE (198M)** (STS 0.478 vs 0.422), corroborating the Qwen3-Embedding family's choice of a Dense architecture throughout. The maximum sequence length is **8192**, covering **Chinese and English** retrieval, STS, classification, and reranking tasks.
 * All core algorithms (last-token pooling, InfoNCE with false-negative masking, MRL, pointwise yes/no rerank) are implemented from scratch in native PyTorch, without relying on third-party high-level abstractions.
 * The entire training pipeline can run on a **single RTX 5080 (16GB)** (with an optional rented A100 to accelerate the large-scale weak-supervision stage), and ships with a **one-command Docker environment** for seamless migration between local and cloud.
 * Benchmarked on mainstream leaderboards (**C-MTEB / MTEB(eng)**), with models and results open-sourced to the **HuggingFace Hub**.
@@ -92,9 +92,11 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
 <summary><b>🔥 2026-07-29</b></summary>
 
  - **MoE variant full three stages complete** (strictly controlled comparison vs Dense):
-   - Stage 1/2/3, end-to-end, using the exact same data/hyperparameters/pipeline as Dense
-   - **Counterintuitive finding: MoE (198M) STS 0.422 < Dense (64M) STS 0.478**
-   - Cause: MoE top-1 routing's sparse activation hurts the embedding's global semantic aggregation; this corroborates Qwen3-Embedding's choice of a dense design
+   - Stage 1 weak supervision: 2827 steps, loss 1.18→0.45
+   - Stage 2 supervised: t2ranking-15, 63768 steps / 3 epochs, loss 1.55→0.85 (higher than Dense's 0.72)
+   - Stage 3 SLERP merge: spherical linear interpolation of the last 5 checkpoints
+   - **Counterintuitive finding: MoE (198M) STS 0.422 < Dense (64M) STS 0.478**; the higher training-side loss and the lower evaluation-side STS corroborate each other
+   - Three causes: MoE fragmentation (expert fragmentation hurts global semantic aggregation), activated params on par with Dense (triple the total params but no growth in effective capacity), and routing overhead (the router is under-trained at this data scale); this corroborates Qwen3-Embedding's choice of a dense design
  - Dense Embedding released on HuggingFace: [Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense)
  - Dense Rerank v0: pure pretrained backbone zero-shot MAP@10=0.47 (best); pointwise fine-tuning actually drops it (catastrophic forgetting)
 
@@ -437,12 +439,13 @@ Measured on:
 | **Dense** | Stage 1 | t2ranking triplet 90k pairs | batch=64, lr=2e-4 | 1413 | ~10min | 1.16→0.43 |
 | **Dense** | Stage 2 | t2ranking-15 340k pairs | batch=16, workers=128, 3 epochs, MRL | 63768 | ~6.8h | 1.47→0.72 |
 | **Dense** | Stage 3 | Stage 2 last 5 ckpts | SLERP t=0.5 | — | <1min | — |
-| **MoE** | Stage 1 | same as above | same as above | 2827 | ~10min | 1.39→0.92 |
-| **MoE** | Stage 2 | same as above | same as above (strictly controlled comparison) | 63768 | ~6.8h | 1.92→1.40 |
+| **MoE** | Stage 1 | same as above | same as above | 2827 | ~10min | 1.18→0.45 |
+| **MoE** | Stage 2 | same as above | same as above (strictly controlled comparison) | 63768 | ~6.8h | 1.55→0.85 |
 | **MoE** | Stage 3 | same as above | SLERP t=0.5 | — | <1min | — |
 
 > Performance key point: `num_workers=128` (208-core CPU) raised GPU utilization from an erratic 18~99% to a **stable 92~96% saturation** — data loading is no longer a bottleneck at all.
 > MoE VRAM usage is 31.4GB/32GB (near saturation); Dense uses 25.4GB. Training time is comparable for both.
+> **MoE's converged loss (~0.85) is higher than Dense's (~0.72) overall**, indicating that MoE is "harder to optimize" under the same data/hyperparameters — a training-side symptom of why it actually loses on STS (see the Dense vs MoE comparison in the Evaluation section).
 
 ### Reflections on the Stage 1 data volume
 
@@ -464,7 +467,35 @@ The current Stage 1 uses only 90k pairs (1 epoch), whereas **the Qwen3-Embedding
 
 </div>
 
-> **Note**: MoE's Stage 2 loss (1.40) is higher than Dense's (0.72), but this **does not mean MoE training is worse**. MoE's top-1 routing activates only 1/4 of experts per token, so the effective compute is lower and the loss values are not directly comparable. The real performance must be judged from the STS evaluation (see the Evaluation section).
+<div align="center">
+
+**Dense training loss curve (Stage1 + Stage2)**
+
+</div>
+
+The MoE variant also completed the full three stages on the same data and hyperparameters; its training curve is shown separately below:
+
+<div align="center">
+
+![MoE training curve](./images/moe_training_loss.png)
+
+</div>
+
+<div align="center">
+
+**MoE training loss curve (Stage1 + Stage2)**
+
+</div>
+
+Overlaying the two curves makes it clearer — MoE's loss stays above Dense's throughout, with a gap of about 0.13:
+
+<div align="center">
+
+![Dense vs MoE loss comparison](./images/dense_vs_moe_loss.png)
+
+</div>
+
+> **Note**: MoE's Stage 2 loss (~0.85) is higher than Dense's (~0.72). MoE's top-1 routing activates only 1/4 of experts per token, so the effective compute is lower and optimization is "harder". More importantly, **the higher training-side loss and the lower evaluation-side STS (0.422 < 0.478) corroborate each other**, confirming that MoE is genuinely worse than Dense at this small scale. The real performance must be judged from the STS evaluation (see the Dense vs MoE comparison in the Evaluation section).
 
 ## Ⅱ Embedding training (three stages)
 
@@ -560,7 +591,7 @@ nohup python -u -m minimind_embedding.train \
 | step | 1000 | 16000 | 32000 | 48000 | 63768 (final) |
 |------|------|-------|-------|-------|---------------|
 | Dense loss | 1.47 | 1.29 | 1.03 | 0.72 | **0.72** |
-| MoE loss | 1.92 | 1.74 | 1.57 | 1.47 | **1.40** |
+| MoE loss | 1.55 | 1.32 | 1.05 | 0.90 | **0.85** |
 
 <div align="center">
 
@@ -637,11 +668,32 @@ Eval method: [C-MTEB](https://github.com/embeddings-benchmark/mteb) standard STS
 
 </div>
 
+### Dense vs MoE comparison (strictly controlled)
+
+Both variants were trained on **exactly the same data, hyperparameters, and pipeline** (the only difference is the backbone architecture), so the gap comes entirely from the Dense vs MoE architecture itself:
+
+| Task | Samples | **Dense (64M)** | **MoE (198M-A64M)** | Diff |
+|------|---------|:---:|:---:|:---:|
+| ATEC | 20000 | **0.265** | 0.201 | -0.064 |
+| BQ | 10000 | **0.379** | 0.297 | -0.082 |
+| LCQMC | 12500 | **0.631** | 0.582 | -0.049 |
+| STSB | 1361 | **0.637** | 0.607 | -0.030 |
+| **Average** | | **0.478** | 0.422 | **-0.056 (-11.7%)** |
+
+<div align="center">
+
+![Dense vs MoE STS comparison](./images/dense_vs_moe.png)
+
+</div>
+
+Dense **leads MoE across all four STS tasks**, and the gap widens on the harder tasks ATEC/BQ (-0.064 / -0.082), showing that MoE's disadvantage is amplified on tasks requiring finer semantic granularity.
+
 ### Result analysis
 
-1. **🔴 Counterintuitive finding: MoE (198M) is 11.7% worse than Dense (64M)** (0.422 vs 0.478). This is a **strictly controlled comparison** (same data, same hyperparameters, same pipeline — the only difference is the architecture), so the conclusion is worth studying. Cause analysis:
-   - **Activated parameters are actually fewer**: although MoE has 198M total params, top-1 routing activates only 64M per token (1/4 of experts). For an embedding task that "compresses a whole sentence into one vector", **sparse activation may hurt global semantic aggregation** — each token goes through a different expert, so by the time of last-token pooling the information is integrated less coherently than in dense.
-   - **Routing is under-trained**: the MoE router wasn't learned well under limited data, and the expert division of labor is unclear.
+1. **🔴 Counterintuitive finding: MoE (198M) is 11.7% worse than Dense (64M)** (0.422 vs 0.478). This is a **strictly controlled comparison** (same data, same hyperparameters, same pipeline — the only difference is the architecture), so the conclusion is worth studying. Three causes:
+   - **MoE fragmentation**: top-1 routing sends each token through only 1/4 of the experts, with different tokens visiting different experts — the representation space gets "fragmented" into multiple subspaces. Embedding needs to compress a whole sentence into a single vector for global semantic aggregation, and the fragmented per-token representations can't be integrated coherently at last-token pooling — this is the root cause of MoE's poor fit for embedding tasks.
+   - **Activated parameters are actually identical (active params on par)**: MoE has 198M total params but only ~64M activated per token — the same as Dense. In other words, MoE **spends no extra "activated compute"** versus Dense, yet pays the price of routing overhead and fragmentation. Tripling the parameter count without growing effective capacity is pure waste at this small data scale.
+   - **Routing overhead (and under-training)**: the router that assigns each token to an expert produces no semantics itself and instead introduces parameters that require extra training. Under this project's limited data (Stage 1 only 90k pairs vs Qwen3's 150M), the router never learned well — expert division of labor is unclear, so routing is noise rather than capability.
    - **This corroborates the Qwen3 team's design choice**: [the entire Qwen3-Embedding family is dense](https://arxiv.org/abs/2506.05176) (0.6B/4B/8B), with no MoE variant — **embedding models should just be dense**.
 2. **Stage 3 SLERP merge vs un-merged Stage 2**: for Dense the two are nearly identical (0.4778 vs 0.4777). On a small model, the late-training checkpoints are already very close to each other, so the marginal gain from merging is negligible.
 3. **3 epochs vs 1 epoch**: on par (both ~0.48). The model already converges to the ceiling of this data/architecture after 1 epoch; more epochs bring no STS gain (although train loss keeps dropping, that's just overfitting the train set).

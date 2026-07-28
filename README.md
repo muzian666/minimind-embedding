@@ -27,7 +27,7 @@
 </div>
 
 * 本项目基于开源的 **[MiniMind](https://github.com/jingyaogong/minimind)** 小型语言模型（64M / 198M-A64M）作为底座，从零训练一套完整的 **文本 Embedding 与 Rerank 模型**，技术路线完全对齐 **[Qwen3-Embedding](https://arxiv.org/abs/2506.05176)**。
-* 全套模型支持 **Dense 与 MoE 双版本**，最大序列长度 **8192**，覆盖 **中英文** 检索、STS、分类与重排任务。
+* 全套模型支持 **Dense 与 MoE 双版本**，并在相同数据/超参下完成**严格受控对比**——结论是反直觉的：**在小规模下，Dense(64M) 反而优于 MoE(198M)**（STS 0.478 vs 0.422），这印证了 Qwen3-Embedding 全系列选 Dense 架构的判断。最大序列长度 **8192**，覆盖 **中英文** 检索、STS、分类与重排任务。
 * 所有核心算法（last-token pooling、InfoNCE 带假负样本 mask、MRL、pointwise yes/no rerank）均从 0 用 PyTorch 原生实现，不依赖第三方高层抽象。
 * 训练全程可在 **单卡 RTX 5080（16GB）** 上完成（大规模弱监督阶段可选租 A100 加速），并提供 **Docker 一键环境**，本地与云端无缝迁移。
 * 参加主流评测榜单 **C-MTEB / MTEB(eng)**，模型与结果均开源至 **HuggingFace Hub**。
@@ -92,9 +92,11 @@
 <summary><b>🔥 2026-07-29</b></summary>
 
  - **MoE 版本完整三阶段完成**(严格受控对比 Dense):
-   - Stage1/2/3 全流程,与 Dense 用完全相同的数据/超参/流程
-   - **反直觉发现:MoE(198M) STS 0.422 < Dense(64M) STS 0.478**
-   - 原因:MoE top-1 routing 稀疏激活损害 embedding 的全局语义聚合;印证 Qwen3-Embedding 选 dense 的设计
+   - Stage1 弱监督:2827 步,loss 1.18→0.45
+   - Stage2 监督:t2ranking-15,63768 步 / 3 epoch,loss 1.55→0.85(高于 Dense 的 0.72)
+   - Stage3 SLERP 融合:最后5个 checkpoint 球面线性插值
+   - **反直觉发现:MoE(198M) STS 0.422 < Dense(64M) STS 0.478**,训练侧 loss 更高与评测侧 STS 更低相互印证
+   - 三大原因:MoE fragmentation(专家割裂损害全局语义聚合)、激活参数与 Dense 持平(总参翻 3 倍但有效容量没涨)、routing overhead(路由在有限数据下未学好);印证 Qwen3-Embedding 选 dense 的设计
  - Dense Embedding 已发布 HuggingFace: [Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense)
  - Dense Rerank v0:纯预训练底座零样本 MAP@10=0.47(最佳),pointwise 微调反降(灾难性遗忘)
 
@@ -437,12 +439,13 @@ Matryoshka Representation Learning（Kusupati et al., 2022，俄罗斯套娃表�
 | **Dense** | Stage 1 | t2ranking triplet 9万条 | batch=64, lr=2e-4 | 1413 | ~10min | 1.16→0.43 |
 | **Dense** | Stage 2 | t2ranking-15 34万条 | batch=16, workers=128, 3epoch, MRL | 63768 | ~6.8h | 1.47→0.72 |
 | **Dense** | Stage 3 | Stage2 最后5 ckpt | SLERP t=0.5 | — | <1min | — |
-| **MoE** | Stage 1 | 同上 | 同上 | 2827 | ~10min | 1.39→0.92 |
-| **MoE** | Stage 2 | 同上 | 同上(严格受控对比) | 63768 | ~6.8h | 1.92→1.40 |
+| **MoE** | Stage 1 | 同上 | 同上 | 2827 | ~10min | 1.18→0.45 |
+| **MoE** | Stage 2 | 同上 | 同上(严格受控对比) | 63768 | ~6.8h | 1.55→0.85 |
 | **MoE** | Stage 3 | 同上 | SLERP t=0.5 | — | <1min | — |
 
 > 性能关键点:`num_workers=128`(208核 CPU)将 GPU 利用率从 18~99% 波动提升到 **92~96% 稳定满载**,数据加载彻底不是瓶颈。
 > MoE 显存占用 31.4GB/32GB(接近满载),Dense 25.4GB。两者训练耗时相近。
+> **MoE 的收敛 loss(~0.85)整体高于 Dense(~0.72)**,说明在相同数据/超参下 MoE 优化得更"吃力"——这是它在 STS 上反而落后的训练侧表征(详见评估章节 Dense vs MoE 对比)。
 
 ### 关于 Stage 1 数据量的反思
 
@@ -464,7 +467,35 @@ Matryoshka Representation Learning（Kusupati et al., 2022，俄罗斯套娃表�
 
 </div>
 
-> **注意**:MoE 的 Stage 2 loss(1.40)高于 Dense(0.72),但这**不代表 MoE 训练差**。MoE 的 top-1 routing 使每个 token 只激活 1/4 expert,等效计算量更少,loss 数值不直接可比。真实表现需看 STS 评测(见评估章节)。
+<div align="center">
+
+**Dense 训练 Loss 曲线（Stage1 + Stage2）**
+
+</div>
+
+MoE 版本在同一份数据与超参下也完成了完整三阶段，其训练曲线单独展示如下：
+
+<div align="center">
+
+![MoE 训练曲线](./images/moe_training_loss.png)
+
+</div>
+
+<div align="center">
+
+**MoE 训练 Loss 曲线（Stage1 + Stage2）**
+
+</div>
+
+把两条曲线叠在一起更直观——可以看到 MoE 的 loss 始终高于 Dense,差距约 0.13:
+
+<div align="center">
+
+![Dense vs MoE loss 对比](./images/dense_vs_moe_loss.png)
+
+</div>
+
+> **注意**:MoE 的 Stage 2 loss(~0.85)高于 Dense(~0.72)。MoE 的 top-1 routing 使每个 token 只激活 1/4 expert,等效计算量更少,优化更"吃力"。更关键的是,**训练侧 loss 更高与评测侧 STS 更低（0.422 < 0.478）相互印证**,说明 MoE 在小规模下确实不如 Dense。真实表现需看 STS 评测(见评估章节 Dense vs MoE 对比)。
 
 ## Ⅱ Embedding 训练（三阶段）
 
@@ -560,7 +591,7 @@ nohup python -u -m minimind_embedding.train \
 | step | 1000 | 16000 | 32000 | 48000 | 63768(终) |
 |------|------|-------|-------|-------|-----------|
 | Dense loss | 1.47 | 1.29 | 1.03 | 0.72 | **0.72** |
-| MoE loss | 1.92 | 1.74 | 1.57 | 1.47 | **1.40** |
+| MoE loss | 1.55 | 1.32 | 1.05 | 0.90 | **0.85** |
 
 <div align="center">
 
@@ -637,11 +668,32 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 
 </div>
 
+### Dense vs MoE 对比（严格受控）
+
+两版本在**完全相同的数据、超参、流程**下训练（唯一区别是 backbone 架构），因此差异完全来自 Dense vs MoE 架构本身:
+
+| 任务 | 样本数 | **Dense(64M)** | **MoE(198M-A64M)** | 差值 |
+|------|--------|:---:|:---:|:---:|
+| ATEC | 20000 | **0.265** | 0.201 | -0.064 |
+| BQ | 10000 | **0.379** | 0.297 | -0.082 |
+| LCQMC | 12500 | **0.631** | 0.582 | -0.049 |
+| STSB | 1361 | **0.637** | 0.607 | -0.030 |
+| **平均** | | **0.478** | 0.422 | **-0.056 (-11.7%)** |
+
+<div align="center">
+
+![Dense vs MoE STS 对比](./images/dense_vs_moe.png)
+
+</div>
+
+四个 STS 任务 Dense **全面领先** MoE,且差距在 ATEC/BQ 这种难度更高的任务上更大(-0.064 / -0.082),说明 MoE 的劣势在语义粒度更细的任务上被放大。
+
 ### 结果分析
 
-1. **🔴 反直觉发现：MoE(198M) 比 Dense(64M) 差 11.7%**（0.422 vs 0.478）。这是一次**严格受控对比**（同数据、同超参、同流程，唯一区别是架构），结论很有研究价值。原因分析：
-   - **激活参数其实更少**：MoE 虽然总参 198M，但 top-1 routing 使每个 token 只激活 64M（1/4 expert）。对于 embedding 这种"整句压缩成一个向量"的任务，**稀疏激活可能损害全局语义聚合**——每个 token 走不同 expert，最后 last-token pooling 时信息整合不如 dense 连贯。
-   - **路由未充分训练**：MoE 的 router 在有限数据下没学好，专家分工不明确。
+1. **🔴 反直觉发现：MoE(198M) 比 Dense(64M) 差 11.7%**（0.422 vs 0.478）。这是一次**严格受控对比**（同数据、同超参、同流程，唯一区别是架构），结论很有研究价值。三个原因:
+   - **MoE fragmentation（专家割裂）**：top-1 routing 让每个 token 只走 1/4 expert,不同 token 走不同 expert,表示空间被"割裂"成多个子空间。embedding 需要把整句压成一个向量做全局语义聚合,而碎片化的 token 表示在 last-token pooling 时难以被连贯地整合——这是 MoE 在 embedding 任务上水土不服的根源。
+   - **激活参数其实相同（active params 持平）**：MoE 总参 198M,但每个 token 只激活 ~64M(与 Dense 相同)。也就是说 MoE 相比 Dense **没有多花任何"激活算力"**,却付出了路由开销与碎片化的代价——参数总量翻 3 倍但有效容量没涨,在小数据量下纯属浪费。
+   - **routing overhead（路由开销与欠训练）**：router 把每个 token 分配到 expert 的过程本身不产生语义,反而引入了需要额外训练的参数。在本项目有限数据下(Stage1 仅 9 万对 vs Qwen3 的 1.5 亿),router 根本没学好,专家分工不明确,路由是噪声而非能力。
    - **这恰好印证了 Qwen3 团队的设计选择**：[Qwen3-Embedding 全系列都是 dense 架构](https://arxiv.org/abs/2506.05176)（0.6B/4B/8B），没有 MoE 版本——**embedding 模型就该用 dense**。
 2. **Stage3 SLERP 融合 vs Stage2 未融合**：Dense 两者几乎一致（0.4778 vs 0.4777）。在小模型上，训练后期的多个 checkpoint 本身已经很接近，融合的边际收益不明显。
 3. **3 epoch vs 1 epoch**：持平（均约 0.48）。模型在 1 epoch 已收敛到该数据/架构的上限，更多 epoch 没带来 STS 提升（虽 train loss 持续降，但属过拟合 train set）。
