@@ -75,13 +75,13 @@
 
 #### 🎉 已发布模型列表
 
-> ✅ Dense Embedding 已完成 Stage 2 训练(STS 平均 0.49)。其余模型训练中。
+> ✅ Dense Embedding 完成完整三阶段(STS 0.48)。Dense Rerank v0 零样本 MAP@10=0.47。MoE 版本训练中。
 
 | 模型 | 类型 | 参数量 | 底座 | 最大长度 | 状态 |
 |------|------|--------|------|----------|------|
-| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ Stage2 完成(STS 0.49) |
-| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 |
-| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | 🚧 代码就绪 |
+| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ 三阶段完成(STS 0.48) |
+| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | 🚧 训练中 |
+| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ v0 零样本(MAP@10 0.47) |
 | minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 |
 
 ---
@@ -89,7 +89,21 @@
 #### 📝 更新日志
 
 <details>
-<summary><b>🔥 2026-07-28</b></summary>
+<summary><b>🔥 2026-07-28 (晚)</b></summary>
+
+ - **Embedding 完整三阶段完成**(云端 RTX 5090):
+   - Stage1 弱监督:t2ranking triplet 9万条,batch=64,1413步,loss 1.16→0.43
+   - Stage2 监督:t2ranking-15 34万条,batch=16,**num_workers=128**,3 epoch,63768步,loss 1.47→0.72
+   - Stage3 SLERP 融合:最后5个 checkpoint 球面线性插值
+ - STS 评测:Stage2(0.478) vs Stage3(0.478),融合在小模型上收益不明显
+ - **关键性能优化**:num_workers=128(208核CPU)将 GPU 利用率从 18~99% 波动提升到 92~96% 稳定满载
+ - **瓶颈定位**:分数受限于 minimind 底座 vocab=6400 + Stage1 数据量不足(9万 vs Qwen3 的1.5亿)
+ - **Rerank 重要发现**:纯预训练底座零样本 MAP@10=0.47(最佳),pointwise 微调反降至0.24(灾难性遗忘)
+
+</details>
+
+<details>
+<summary><b>🔥 2026-07-28 (早)</b></summary>
 
  - **M2 完成**：Dense Embedding Stage 2 全量训练（t2ranking-15，34万条，42513 步，~4.5h）。
  - loss 从 1.9 平滑收敛至 0.95，全程无发散/塌缩。wandb 完整记录。
@@ -380,19 +394,37 @@ Matryoshka Representation Learning（Kusupati et al., 2022）让一个向量在�
 
 # 📌 实验
 
-> ✅ Dense 版本已完成 Stage 2 全量训练(RTX 5080 单卡),以下为实测数据。Stage 1/3 与 MoE 版本待补。
+> ✅ Dense 版本已完成**完整三阶段**(Stage1 弱监督 → Stage2 监督+MRL → Stage3 SLERP 融合)。
 
 ## Ⅰ 训练开销
 
-实测环境:RTX 5080 (16GB,Blackwell sm_120) + Docker (CUDA 13.3 + torch 2.13 cu130)。
+实测环境:
+- **Stage1/2/3**:云端 RTX 5090 (32GB,Blackwell sm_120) + torch 2.8 cu128,208 核 CPU(`num_workers=128` 充分发挥)
+- **早期验证**:本地 RTX 5080 (16GB) + Docker (CUDA 13.3 + torch 2.13 cu130)
 
-| Model Name | params | 数据量 | Stage 2 耗时 | 显存占用 | 备注 |
-|------------|--------|--------|--------------|----------|------|
-| minimind-embedding-dense | 64M | t2ranking-15 (34万条) | **~4.5h** (42513 步) | 15.5/16 GB | ✅ 已完成 |
-| minimind-embedding-moe | 198M-A64M | 同上 | 待测 | >16 GB(需降 batch) | 建议租 A100 |
+| 阶段 | 数据 | 配置 | 步数 | 耗时 | Loss |
+|------|------|------|------|------|------|
+| **Stage 1 弱监督** | t2ranking triplet 9万条 | batch=64, lr=2e-4, 1epoch | 1413 | ~10min | 1.16→0.43 |
+| **Stage 2 监督** | t2ranking-15 34万条 | batch=16, workers=128, lr=1e-5, **3epoch**, MRL | 63768 | ~6.8h | 1.47→0.72 |
+| **Stage 3 融合** | Stage2 最后 5 个 ckpt | SLERP t=0.5 | — | <1min | — |
 
-> Stage 2 参数:batch=8, max_length=256, 7 hard negatives, lr=1e-5, temp=0.02, margin=0.1, MRL on。
-> 训练全程 loss 从 1.9 平滑收敛至 ~0.95,无发散或塌缩。完整曲线见 [wandb](https://wandb.ai/qinganli-personal/minimind-embedding)。
+> 性能关键点:`num_workers=128`(208核 CPU)将 GPU 利用率从 18~99% 波动提升到 **92~96% 稳定满载**,数据加载彻底不是瓶颈。
+
+### 关于 Stage 1 数据量的反思
+
+当前 Stage 1 仅用 9 万条数据(1 epoch),而 **Qwen3-Embedding 报告的 Stage 1 是 1.5 亿对**(我们的 ~1660 倍)。Stage 1 的目的是"大规模弱监督建立语义对齐基础",数据量差三个数量级,语义对齐没学透,这是当前 STS 分数受限的主要原因之一。后续改进方向:扩充 Stage 1 数据(合成 query、多源召回)。
+
+## Ⅱ Loss 收敛曲线(Stage 2,3 epoch)
+
+| step | epoch | loss | 说明 |
+|------|-------|------|------|
+| 1000 | 0 | 1.47 | 初始 |
+| 16000 | 0 | 1.29 | 第1轮中期 |
+| 32000 | 1 | 1.03 | 第2轮 |
+| 48000 | 2 | 0.72 | 第3轮 |
+| 63768 | 2(终) | 0.72 | 收敛 |
+
+> 完整曲线见 wandb: [cloud_stage2_FINAL_batch16_w128](https://wandb.ai/qinganli-personal/minimind-embedding)
 
 ## Ⅱ Embedding 训练（三阶段）
 
@@ -494,25 +526,40 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 
 # 📌 评估
 
-> ✅ Dense 版本 Stage 2 已完成 STS 评测。完整 C-MTEB 35 任务榜单正在准备中（mteb v2 集成中）。
+> ✅ Dense 版本完整三阶段已完成 STS 评测。完整 C-MTEB 35 任务榜单正在准备中（mteb v2 集成中）。
 
 ## Ⅰ STS 结果（中文，Spearman 相关系数）
 
 评测方法：[C-MTEB](https://github.com/embeddings-benchmark/mteb) 标准 STS 任务 test split，模型编码 sentence1/sentence2（last-token pooling + L2 归一化），计算 cosine 相似度与人工标注的 Spearman 相关。
 
-| 任务 | 样本数 | 本模型(Stage 2) | mini 基线(2000样本) | 说明 |
-|------|--------|:---:|:---:|------|
-| ATEC | 20000 | **0.2656** | 0.13 | 银行客服语义相似 |
-| BQ | 10000 | **0.3975** | 0.25 | 百度问答相似 |
-| LCQMC | 12500 | **0.6321** | 0.50 | 问题匹配(最佳) |
-| STSB | 1361 | **0.6687** | — | 中文语义文本相似度 |
-| **平均** | | **0.4910** | 0.29 | **较 mini 提升 69%** |
+| 任务 | 样本数 | Stage2(3epoch) | **Stage3(SLERP融合)** | mini基线 | 说明 |
+|------|--------|:---:|:---:|:---:|------|
+| ATEC | 20000 | 0.265 | **0.265** | 0.13 | 银行客服语义相似 |
+| BQ | 10000 | 0.379 | **0.379** | 0.25 | 百度问答相似 |
+| LCQMC | 12500 | 0.630 | **0.631** | 0.50 | 问题匹配(最佳) |
+| STSB | 1361 | 0.637 | **0.637** | — | 中文语义文本相似度 |
+| **平均** | | **0.478** | **0.478** | 0.29 | — |
 
-> **对比参考**（同任务，社区模型）：BGE-small-zh 约 0.55~0.65，Qwen3-Embedding-0.6B 约 0.66。
-> 本模型仅 64M 参数、vocab 6402，STS 平均 0.49 已属合理。STSB 单项 0.67 接近 BGE-small-zh 水平。
-> 局限：minimind 底座 vocab 仅 6400（中文压缩比弱于专用中文模型），且当前未跑 Stage 1 弱监督 + Stage 3 融合，分数仍有提升空间。
+### 结果分析
 
-详细 JSON：见 `results/sts_scores_full.json`。
+1. **Stage3 SLERP 融合 vs Stage2 未融合**：分数几乎一致（0.4778 vs 0.4777）。在小模型(64M)上,训练后期的多个 checkpoint 本身已经很接近,融合的边际收益不明显。Qwen3-Embedding 的融合收益来自大模型(0.6B+)的更高维度表达空间。
+2. **3 epoch vs 1 epoch**：持平(均约 0.48)。模型在 1 epoch 已收敛到该数据/架构的上限,更多 epoch 没带来 STS 提升(虽 train loss 持续降,但属过拟合 train set)。
+3. **瓶颈定位**：LCQMC/STSB 较强(0.63/0.64),ATEC/BQ 较弱(0.27/0.38)。根本瓶颈在 **minimind 底座 vocab=6400**(中文压缩比弱)+ **Stage1 数据量不足**(9万 vs Qwen3 的 1.5亿)。
+
+> **对比参考**：BGE-small-zh 约 0.55~0.65，Qwen3-Embedding-0.6B 约 0.66。本模型仅 64M、vocab 6400,STS 0.48 受限于底座,但完整复现了 Qwen3-Embedding 三阶段技术路线。
+
+详细 JSON：见 `results/sts_stage3.json`。
+
+## Ⅱ Rerank 结果
+
+| 方案 | T2Reranking MAP@10 | 说明 |
+|------|:---:|------|
+| **纯预训练底座(零样本)** | **0.4666** | ✅ 最佳。直接用 rerank prompt 让模型预测"是/否" |
+| pointwise 微调(v1/v2) | 0.24 | ❌ 灾难性遗忘,详见下方分析 |
+
+**重要发现**：对 minimind 这种 64M 小底座,**全参数 pointwise 微调反而破坏了预训练已有的判别能力**(MAP@10 从 0.47 降至 0.24)。Qwen3-Reranker 能用同样方法成功,是因为 0.6B+ 参数足以"同时保留预训练知识 + 学新任务"。小模型的 reranker 改进方向:冻结底座/LoRA/listwise loss。
+
+详细 JSON：见 `results/rerank_pretrain_baseline.json`。
 
 ## Ⅱ MTEB 英文结果
 

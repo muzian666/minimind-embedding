@@ -84,6 +84,8 @@ def parse_args():
     p.add_argument("--log_steps", type=int, default=10)
     p.add_argument("--device", default="cuda")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--num_workers", type=int, default=4,
+                   help="DataLoader 进程数(0=主线程串行;云端建议 8-16 加速数据加载)")
     # wandb 日志(失败时优雅降级为纯 stdout)
     p.add_argument("--wandb_project", default="minimind-embedding")
     p.add_argument("--wandb_run_name", default=None)
@@ -287,7 +289,8 @@ def main():
     )
     loader = DataLoader(
         ds, batch_size=args.batch_size, shuffle=True, collate_fn=collator,
-        num_workers=0, drop_last=True,
+        num_workers=args.num_workers, drop_last=True, pin_memory=True,
+        persistent_workers=args.num_workers > 0,
     )
 
     # 4) 优化器

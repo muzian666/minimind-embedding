@@ -105,7 +105,7 @@ def _append_eos_and_pad(tokenizer, texts, max_length, return_tensors):
         input_ids.append([pad_id] * pad_len + ids)
         attention_mask.append([0] * pad_len + [1] * len(ids))
 
-    import torch
+    import torch  # 局部 import,避免未安装 torch 的纯文本环境报错
     return {
         "input_ids": torch.tensor(input_ids, dtype=torch.long),
         "attention_mask": torch.tensor(attention_mask, dtype=torch.long),
