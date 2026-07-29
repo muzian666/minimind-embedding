@@ -690,6 +690,14 @@ nohup python -u -m minimind_rerank.train \
 
 > Accuracy rose from 60% to 85% — the model genuinely learned relevance judgment.
 
+<div align="center">
+
+![Rerank Training Loss & Accuracy](./images/rerank_training.png)
+
+*Rerank training curve: Loss (red) 0.79→0.35, Accuracy (blue) 55%→85%, 3 epochs.*
+
+</div>
+
 ---
 
 # 📌 Evaluation
@@ -774,6 +782,14 @@ Evaluation method: [C-MTEB/T2Reranking](https://huggingface.co/datasets/C-MTEB/T
 ### 🔍 Three Bugs Story (this project's most important engineering lesson)
 
 During Reranker development, three pitfalls were hit back to back; they **chained together** to create the initial illusion that "all rerank experiments get worse the more you train". Fixing them one by one took MAP@10 from 0.47 to 0.92:
+
+<div align="center">
+
+![MAP@10 Evolution](./images/rerank_map_evolution.png)
+
+*MAP@10 from Bug 1's 0.24 → fixed 0.915 (+281%). Dashed line = zero-shot baseline 0.47.*
+
+</div>
 
 | Bug | Symptom | Root cause | Fix | After fix |
 |-----|---------|------------|-----|-----------|
