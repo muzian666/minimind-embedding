@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./images/banner.jpg" alt="MiniMind-Embedding & Rerank" width="100%">
+<img src="./images/banner.png" alt="MiniMind-Embedding & Rerank" width="100%">
 
 # MiniMind-Embedding & Rerank
 
