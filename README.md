@@ -690,6 +690,14 @@ nohup python -u -m minimind_rerank.train \
 
 > 准确率从 60% 升到 85%，模型真正学会了相关性判断。
 
+<div align="center">
+
+![Rerank 训练 Loss & Accuracy](./images/rerank_training.png)
+
+*Rerank 训练曲线：Loss（红）从 0.79 降至 0.35，Accuracy（蓝）从 55% 升至 85%，3 个 epoch 分界清晰。*
+
+</div>
+
 ---
 
 # 📌 评估
@@ -774,6 +782,14 @@ nohup python -u -m minimind_rerank.train \
 ### 🔍 三个 Bug 的故事（本项目最重要的工程教训）
 
 Reranker 的开发过程中连续踩了三个坑，它们**串联**导致了最初所有 rerank 实验"越训越差"的假象。逐一修复后 MAP@10 从 0.47 飙升到 0.92：
+
+<div align="center">
+
+![Rerank MAP@10 演进历程](./images/rerank_map_evolution.png)
+
+*MAP@10 从 Bug 1 的 0.24 → 修复后 0.915（+281%）。虚线为零样本 baseline 0.47。*
+
+</div>
 
 | Bug | 症状 | 根因 | 修复 | 修复后 |
 |-----|------|------|------|--------|

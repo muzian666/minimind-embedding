@@ -1,0 +1,25 @@
+== MiniMind-Rerank 训练 (rerank_dense_64m) ==
+[load_pretrained_backbone] 已加载 /root/minimind-embeddings/out/pretrain_768.pth
+  完整加载: 91 个参数
+  部分加载: 0 个(vocab 扩展,前 6400 行已拷贝)
+  跳过:     0 个(embedding 模型忽略 lm_head / rerank 缺 head 属正常)
+参数量: 63.9M
+yes_token_id=357, no_token_id=1332
+[freeze_backbone] 冻结底座,只训练 lm_head: 0.0M / 63.9M 可训练
+[HFRerankDataset] 加载 C-MTEB/T2Reranking (config=None) split=dev ...
+[HFRerankDataset] 展开后共 100000 条 (q,d,label) 对
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/minimind-embeddings/minimind_rerank/train.py", line 246, in <module>
+    main()
+  File "/root/minimind-embeddings/minimind_rerank/train.py", line 170, in main
+    optim = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=args.lr)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/miniconda3/lib/python3.12/site-packages/torch/optim/adamw.py", line 37, in __init__
+    super().__init__(
+  File "/root/miniconda3/lib/python3.12/site-packages/torch/optim/adam.py", line 101, in __init__
+    super().__init__(params, defaults)
+  File "/root/miniconda3/lib/python3.12/site-packages/torch/optim/optimizer.py", line 395, in __init__
+    raise ValueError("optimizer got an empty parameter list")
+ValueError: optimizer got an empty parameter list

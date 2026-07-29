@@ -1,0 +1,109 @@
+== MiniMind-Rerank 训练 (rerank_dense_64m) ==
+[load_pretrained_backbone] 已加载 /root/minimind-embeddings/out/pretrain_768.pth
+  完整加载: 91 个参数
+  部分加载: 0 个(vocab 扩展,前 6400 行已拷贝)
+  跳过:     0 个(embedding 模型忽略 lm_head / rerank 缺 head 属正常)
+参数量: 63.9M
+yes_token_id=357, no_token_id=1332
+[freeze_backbone] 冻结 Transformer 层,保留 lm_head+embed: 4.9M / 63.9M 可训练
+[HFRerankDataset] 加载 C-MTEB/T2Reranking (config=None) split=dev ...
+[HFRerankDataset] 展开后共 100000 条 (q,d,label) 对
+总步数: 6250, batch=16, accum=1
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: qinganli (qinganli-personal) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 5vbvecye
+wandb: Tracking run with wandb version 0.28.1
+wandb: Run data is saved locally in /root/minimind-embeddings/wandb/run-20260729_181934-5vbvecye
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run rerank_exp1_freeze_v2
+wandb: ⭐️ View project at https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: 🚀 View run at https://wandb.ai/qinganli-personal/minimind-embedding/runs/5vbvecye
+[wandb] 已启用,run=rerank_exp1_freeze_v2
+epoch 0 step 100/6250 loss 1.0956 acc 0.530 lr 9.99e-05
+epoch 0 step 200/6250 loss 0.9286 acc 0.548 lr 9.98e-05
+epoch 0 step 300/6250 loss 0.8722 acc 0.571 lr 9.95e-05
+epoch 0 step 400/6250 loss 0.8183 acc 0.554 lr 9.91e-05
+epoch 0 step 500/6250 loss 0.7644 acc 0.586 lr 9.86e-05
+epoch 0 step 600/6250 loss 0.7369 acc 0.597 lr 9.80e-05
+epoch 0 step 700/6250 loss 0.7049 acc 0.581 lr 9.73e-05
+epoch 0 step 800/6250 loss 0.7278 acc 0.576 lr 9.64e-05
+epoch 0 step 900/6250 loss 0.7192 acc 0.571 lr 9.55e-05
+epoch 0 step 1000/6250 loss 0.6858 acc 0.600 lr 9.44e-05
+epoch 0 step 1100/6250 loss 0.6950 acc 0.591 lr 9.33e-05
+epoch 0 step 1200/6250 loss 0.6946 acc 0.587 lr 9.21e-05
+epoch 0 step 1300/6250 loss 0.6779 acc 0.596 lr 9.07e-05
+epoch 0 step 1400/6250 loss 0.6752 acc 0.596 lr 8.93e-05
+epoch 0 step 1500/6250 loss 0.6795 acc 0.608 lr 8.78e-05
+epoch 0 step 1600/6250 loss 0.6928 acc 0.601 lr 8.62e-05
+epoch 0 step 1700/6250 loss 0.6732 acc 0.604 lr 8.46e-05
+epoch 0 step 1800/6250 loss 0.6893 acc 0.592 lr 8.28e-05
+epoch 0 step 1900/6250 loss 0.6498 acc 0.608 lr 8.10e-05
+epoch 0 step 2000/6250 loss 0.6615 acc 0.611 lr 7.91e-05
+epoch 0 step 2100/6250 loss 0.6464 acc 0.624 lr 7.72e-05
+epoch 0 step 2200/6250 loss 0.6529 acc 0.614 lr 7.52e-05
+epoch 0 step 2300/6250 loss 0.6668 acc 0.606 lr 7.32e-05
+epoch 0 step 2400/6250 loss 0.6645 acc 0.594 lr 7.11e-05
+epoch 0 step 2500/6250 loss 0.6508 acc 0.616 lr 6.89e-05
+epoch 0 step 2600/6250 loss 0.6584 acc 0.608 lr 6.68e-05
+epoch 0 step 2700/6250 loss 0.6570 acc 0.613 lr 6.46e-05
+epoch 0 step 2800/6250 loss 0.6547 acc 0.616 lr 6.23e-05
+epoch 0 step 2900/6250 loss 0.6408 acc 0.637 lr 6.01e-05
+epoch 0 step 3000/6250 loss 0.6387 acc 0.620 lr 5.78e-05
+epoch 0 step 3100/6250 loss 0.6495 acc 0.622 lr 5.56e-05
+epoch 0 step 3200/6250 loss 0.6640 acc 0.614 lr 5.33e-05
+epoch 0 step 3300/6250 loss 0.6490 acc 0.623 lr 5.11e-05
+epoch 0 step 3400/6250 loss 0.6328 acc 0.623 lr 4.88e-05
+epoch 0 step 3500/6250 loss 0.6393 acc 0.619 lr 4.66e-05
+epoch 0 step 3600/6250 loss 0.6394 acc 0.636 lr 4.44e-05
+epoch 0 step 3700/6250 loss 0.6452 acc 0.619 lr 4.22e-05
+epoch 0 step 3800/6250 loss 0.6360 acc 0.649 lr 4.00e-05
+epoch 0 step 3900/6250 loss 0.6210 acc 0.646 lr 3.79e-05
+epoch 0 step 4000/6250 loss 0.6318 acc 0.632 lr 3.59e-05
+epoch 0 step 4100/6250 loss 0.6450 acc 0.627 lr 3.38e-05
+epoch 0 step 4200/6250 loss 0.6373 acc 0.631 lr 3.19e-05
+epoch 0 step 4300/6250 loss 0.6364 acc 0.627 lr 3.00e-05
+epoch 0 step 4400/6250 loss 0.6335 acc 0.626 lr 2.81e-05
+epoch 0 step 4500/6250 loss 0.6414 acc 0.609 lr 2.63e-05
+epoch 0 step 4600/6250 loss 0.6459 acc 0.626 lr 2.46e-05
+epoch 0 step 4700/6250 loss 0.6360 acc 0.621 lr 2.30e-05
+epoch 0 step 4800/6250 loss 0.6237 acc 0.641 lr 2.14e-05
+epoch 0 step 4900/6250 loss 0.6268 acc 0.646 lr 2.00e-05
+epoch 0 step 5000/6250 loss 0.6109 acc 0.652 lr 1.86e-05
+epoch 0 step 5100/6250 loss 0.6310 acc 0.626 lr 1.73e-05
+epoch 0 step 5200/6250 loss 0.6125 acc 0.664 lr 1.61e-05
+epoch 0 step 5300/6250 loss 0.6239 acc 0.646 lr 1.50e-05
+epoch 0 step 5400/6250 loss 0.6182 acc 0.641 lr 1.41e-05
+epoch 0 step 5500/6250 loss 0.6207 acc 0.643 lr 1.32e-05
+epoch 0 step 5600/6250 loss 0.6221 acc 0.633 lr 1.24e-05
+epoch 0 step 5700/6250 loss 0.6269 acc 0.642 lr 1.17e-05
+epoch 0 step 5800/6250 loss 0.6214 acc 0.643 lr 1.12e-05
+epoch 0 step 5900/6250 loss 0.6216 acc 0.634 lr 1.07e-05
+epoch 0 step 6000/6250 loss 0.6301 acc 0.639 lr 1.04e-05
+epoch 0 step 6100/6250 loss 0.6193 acc 0.641 lr 1.01e-05
+epoch 0 step 6200/6250 loss 0.6267 acc 0.632 lr 1.00e-05
+[save] rerank_768_step6250.pth + latest
+== 训练完成,共 6250 步 ==
+wandb: updating run metadata
+wandb: uploading config.yaml; uploading output.log; uploading wandb-summary.json
+wandb: uploading history steps 59-61, summary, console lines 61-64
+wandb: 
+wandb: Run history:
+wandb: accuracy ▁▃▄▄▄▃▅▄▄▄▅▅▄▅▆▄▅▅▅▇▆▆▇▆▇▆▆▆▆▆▇▇█▇▇▆▇▆▇▆
+wandb:    epoch ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:     loss █▅▃▃▂▃▂▂▂▂▂▂▂▂▁▂▂▂▂▂▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:       lr ███████▇▇▇▇▇▆▆▆▆▅▅▅▅▄▄▃▃▃▃▂▂▂▂▂▂▂▁▁▁▁▁▁▁
+wandb: progress ▁▁▁▁▂▂▂▂▃▃▃▃▃▃▄▄▄▅▅▅▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇▇████
+wandb:     step ▁▁▁▂▂▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇███
+wandb: 
+wandb: Run summary:
+wandb: accuracy 0.6325
+wandb:    epoch 0
+wandb:     loss 0.62669
+wandb:       lr 1e-05
+wandb: progress 0.992
+wandb:     step 6200
+wandb: 
+wandb: 🚀 View run rerank_exp1_freeze_v2 at: https://wandb.ai/qinganli-personal/minimind-embedding/runs/5vbvecye
+wandb: ⭐️ View project at: https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260729_181934-5vbvecye/logs

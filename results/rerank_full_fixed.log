@@ -1,0 +1,148 @@
+== MiniMind-Rerank 训练 (rerank_dense_64m) ==
+[load_pretrained_backbone] 已加载 /root/minimind-embeddings/out/pretrain_768.pth
+  完整加载: 91 个参数
+  部分加载: 0 个(vocab 扩展,前 6400 行已拷贝)
+  跳过:     0 个(embedding 模型忽略 lm_head / rerank 缺 head 属正常)
+参数量: 63.9M
+yes_token_id=357, no_token_id=1332
+[HFRerankDataset] 加载 C-MTEB/T2Reranking (config=None) split=dev ...
+[HFRerankDataset] 展开后共 100000 条 (q,d,label) 对
+总步数: 18750, batch=16, accum=1
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: qinganli (qinganli-personal) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run oaw8uo70
+wandb: Tracking run with wandb version 0.28.1
+wandb: Run data is saved locally in /root/minimind-embeddings/wandb/run-20260729_185740-oaw8uo70
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run rerank_full_label_fixed_3ep
+wandb: ⭐️ View project at https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: 🚀 View run at https://wandb.ai/qinganli-personal/minimind-embedding/runs/oaw8uo70
+[wandb] 已启用,run=rerank_full_label_fixed_3ep
+epoch 0 step 200/18750 loss 0.7578 acc 0.578 lr 1.00e-05
+epoch 0 step 400/18750 loss 0.6848 acc 0.588 lr 9.99e-06
+epoch 0 step 600/18750 loss 0.6694 acc 0.606 lr 9.98e-06
+epoch 0 step 800/18750 loss 0.6544 acc 0.612 lr 9.96e-06
+epoch 0 step 1000/18750 loss 0.6624 acc 0.601 lr 9.94e-06
+epoch 0 step 1200/18750 loss 0.6292 acc 0.647 lr 9.91e-06
+epoch 0 step 1400/18750 loss 0.6281 acc 0.641 lr 9.88e-06
+epoch 0 step 1600/18750 loss 0.6253 acc 0.663 lr 9.84e-06
+epoch 0 step 1800/18750 loss 0.6271 acc 0.642 lr 9.80e-06
+epoch 0 step 2000/18750 loss 0.6158 acc 0.660 lr 9.75e-06
+[save] rerank_768_step2000.pth + latest
+epoch 0 step 2200/18750 loss 0.6119 acc 0.662 lr 9.70e-06
+epoch 0 step 2400/18750 loss 0.6114 acc 0.665 lr 9.64e-06
+epoch 0 step 2600/18750 loss 0.6030 acc 0.668 lr 9.58e-06
+epoch 0 step 2800/18750 loss 0.6112 acc 0.665 lr 9.51e-06
+epoch 0 step 3000/18750 loss 0.5996 acc 0.667 lr 9.44e-06
+epoch 0 step 3200/18750 loss 0.6123 acc 0.671 lr 9.37e-06
+epoch 0 step 3400/18750 loss 0.5788 acc 0.689 lr 9.29e-06
+epoch 0 step 3600/18750 loss 0.5976 acc 0.682 lr 9.21e-06
+epoch 0 step 3800/18750 loss 0.5907 acc 0.689 lr 9.12e-06
+epoch 0 step 4000/18750 loss 0.5941 acc 0.685 lr 9.03e-06
+[save] rerank_768_step4000.pth + latest
+epoch 0 step 4200/18750 loss 0.5928 acc 0.672 lr 8.93e-06
+epoch 0 step 4400/18750 loss 0.5782 acc 0.692 lr 8.83e-06
+epoch 0 step 4600/18750 loss 0.6030 acc 0.679 lr 8.73e-06
+epoch 0 step 4800/18750 loss 0.5796 acc 0.692 lr 8.62e-06
+epoch 0 step 5000/18750 loss 0.5708 acc 0.698 lr 8.51e-06
+epoch 0 step 5200/18750 loss 0.5823 acc 0.680 lr 8.40e-06
+epoch 0 step 5400/18750 loss 0.5747 acc 0.696 lr 8.28e-06
+epoch 0 step 5600/18750 loss 0.5777 acc 0.699 lr 8.16e-06
+epoch 0 step 5800/18750 loss 0.5857 acc 0.678 lr 8.04e-06
+epoch 0 step 6000/18750 loss 0.5707 acc 0.701 lr 7.91e-06
+[save] rerank_768_step6000.pth + latest
+epoch 0 step 6200/18750 loss 0.5753 acc 0.689 lr 7.78e-06
+epoch 1 step 6400/18750 loss 0.5317 acc 0.734 lr 7.65e-06
+epoch 1 step 6600/18750 loss 0.5247 acc 0.741 lr 7.52e-06
+epoch 1 step 6800/18750 loss 0.5236 acc 0.742 lr 7.38e-06
+epoch 1 step 7000/18750 loss 0.5476 acc 0.721 lr 7.24e-06
+epoch 1 step 7200/18750 loss 0.5300 acc 0.737 lr 7.10e-06
+epoch 1 step 7400/18750 loss 0.5326 acc 0.733 lr 6.96e-06
+epoch 1 step 7600/18750 loss 0.5239 acc 0.734 lr 6.82e-06
+epoch 1 step 7800/18750 loss 0.5427 acc 0.728 lr 6.67e-06
+epoch 1 step 8000/18750 loss 0.5329 acc 0.728 lr 6.53e-06
+[save] rerank_768_step8000.pth + latest
+epoch 1 step 8200/18750 loss 0.5268 acc 0.739 lr 6.38e-06
+epoch 1 step 8400/18750 loss 0.5394 acc 0.720 lr 6.23e-06
+epoch 1 step 8600/18750 loss 0.5317 acc 0.723 lr 6.08e-06
+epoch 1 step 8800/18750 loss 0.5232 acc 0.730 lr 5.93e-06
+epoch 1 step 9000/18750 loss 0.5256 acc 0.731 lr 5.78e-06
+epoch 1 step 9200/18750 loss 0.5199 acc 0.742 lr 5.63e-06
+epoch 1 step 9400/18750 loss 0.5089 acc 0.743 lr 5.48e-06
+epoch 1 step 9600/18750 loss 0.5003 acc 0.752 lr 5.33e-06
+epoch 1 step 9800/18750 loss 0.5186 acc 0.731 lr 5.18e-06
+epoch 1 step 10000/18750 loss 0.5205 acc 0.730 lr 5.03e-06
+[save] rerank_768_step10000.pth + latest
+epoch 1 step 10200/18750 loss 0.5224 acc 0.740 lr 4.88e-06
+epoch 1 step 10400/18750 loss 0.5084 acc 0.739 lr 4.73e-06
+epoch 1 step 10600/18750 loss 0.5200 acc 0.733 lr 4.58e-06
+epoch 1 step 10800/18750 loss 0.5139 acc 0.743 lr 4.44e-06
+epoch 1 step 11000/18750 loss 0.5037 acc 0.748 lr 4.29e-06
+epoch 1 step 11200/18750 loss 0.5306 acc 0.731 lr 4.15e-06
+epoch 1 step 11400/18750 loss 0.5224 acc 0.736 lr 4.00e-06
+epoch 1 step 11600/18750 loss 0.5058 acc 0.746 lr 3.86e-06
+epoch 1 step 11800/18750 loss 0.5042 acc 0.747 lr 3.72e-06
+epoch 1 step 12000/18750 loss 0.5213 acc 0.738 lr 3.58e-06
+[save] rerank_768_step12000.pth + latest
+epoch 1 step 12200/18750 loss 0.5246 acc 0.734 lr 3.45e-06
+epoch 1 step 12400/18750 loss 0.5181 acc 0.738 lr 3.32e-06
+epoch 2 step 12600/18750 loss 0.4619 acc 0.784 lr 3.19e-06
+epoch 2 step 12800/18750 loss 0.3717 acc 0.833 lr 3.06e-06
+epoch 2 step 13000/18750 loss 0.3728 acc 0.832 lr 2.93e-06
+epoch 2 step 13200/18750 loss 0.3736 acc 0.835 lr 2.81e-06
+epoch 2 step 13400/18750 loss 0.3843 acc 0.820 lr 2.69e-06
+epoch 2 step 13600/18750 loss 0.3637 acc 0.835 lr 2.57e-06
+epoch 2 step 13800/18750 loss 0.3829 acc 0.824 lr 2.46e-06
+epoch 2 step 14000/18750 loss 0.3700 acc 0.841 lr 2.35e-06
+[save] rerank_768_step14000.pth + latest
+epoch 2 step 14200/18750 loss 0.3835 acc 0.828 lr 2.25e-06
+epoch 2 step 14400/18750 loss 0.3779 acc 0.839 lr 2.14e-06
+epoch 2 step 14600/18750 loss 0.3721 acc 0.836 lr 2.05e-06
+epoch 2 step 14800/18750 loss 0.3813 acc 0.830 lr 1.95e-06
+epoch 2 step 15000/18750 loss 0.3659 acc 0.832 lr 1.86e-06
+epoch 2 step 15200/18750 loss 0.3606 acc 0.841 lr 1.77e-06
+epoch 2 step 15400/18750 loss 0.3553 acc 0.841 lr 1.69e-06
+epoch 2 step 15600/18750 loss 0.3638 acc 0.835 lr 1.61e-06
+epoch 2 step 15800/18750 loss 0.3526 acc 0.846 lr 1.54e-06
+epoch 2 step 16000/18750 loss 0.3744 acc 0.823 lr 1.47e-06
+[save] rerank_768_step16000.pth + latest
+epoch 2 step 16200/18750 loss 0.3620 acc 0.844 lr 1.40e-06
+epoch 2 step 16400/18750 loss 0.3612 acc 0.834 lr 1.34e-06
+epoch 2 step 16600/18750 loss 0.3510 acc 0.844 lr 1.29e-06
+epoch 2 step 16800/18750 loss 0.3554 acc 0.846 lr 1.24e-06
+epoch 2 step 17000/18750 loss 0.3466 acc 0.847 lr 1.19e-06
+epoch 2 step 17200/18750 loss 0.3683 acc 0.846 lr 1.15e-06
+epoch 2 step 17400/18750 loss 0.3583 acc 0.837 lr 1.11e-06
+epoch 2 step 17600/18750 loss 0.3432 acc 0.845 lr 1.08e-06
+epoch 2 step 17800/18750 loss 0.3454 acc 0.853 lr 1.06e-06
+epoch 2 step 18000/18750 loss 0.3663 acc 0.842 lr 1.04e-06
+[save] rerank_768_step18000.pth + latest
+epoch 2 step 18200/18750 loss 0.3502 acc 0.843 lr 1.02e-06
+epoch 2 step 18400/18750 loss 0.3559 acc 0.843 lr 1.01e-06
+epoch 2 step 18600/18750 loss 0.3720 acc 0.835 lr 1.00e-06
+[save] rerank_768_step18750.pth + latest
+== 训练完成,共 18750 步 ==
+wandb: updating run metadata
+wandb: uploading output.log; uploading wandb-summary.json; uploading config.yaml
+wandb: uploading history steps 92-92, summary, console lines 103-104
+wandb: 
+wandb: Run history:
+wandb: accuracy ▁▁▁▂▂▂▃▃▃▃▄▃▄▄▃▅▅▅▅▄▅▅▅▅▅▅▅▅▅▅█▇▇███████
+wandb:    epoch ▁▁▁▁▁▁▁▁▁▁▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅███████████████
+wandb:     loss █▇▆▆▆▆▅▆▅▅▅▅▄▄▄▄▄▄▄▄▄▄▃▁▂▂▂▁▂▁▁▂▁▁▁▁▁▁▁▁
+wandb:       lr ███████▇▇▇▇▇▆▆▆▆▆▅▅▅▄▄▄▄▄▄▃▃▃▃▂▂▂▂▂▁▁▁▁▁
+wandb: progress ▁▁▁▁▂▂▂▂▃▃▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇▇▇▇█
+wandb:     step ▁▁▁▂▂▃▃▃▃▃▃▃▃▃▃▄▄▄▅▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇█████
+wandb: 
+wandb: Run summary:
+wandb: accuracy 0.835
+wandb:    epoch 2
+wandb:     loss 0.37199
+wandb:       lr 0.0
+wandb: progress 0.992
+wandb:     step 18600
+wandb: 
+wandb: 🚀 View run rerank_full_label_fixed_3ep at: https://wandb.ai/qinganli-personal/minimind-embedding/runs/oaw8uo70
+wandb: ⭐️ View project at: https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260729_185740-oaw8uo70/logs
