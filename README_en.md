@@ -29,7 +29,9 @@
 </div>
 
 * Built on the open-source **[MiniMind](https://github.com/jingyaogong/minimind)** small language model (64M / 198M-A64M) as the backbone, this project trains a complete suite of **text Embedding and Rerank models from scratch**, with the technical approach fully aligned to **[Qwen3-Embedding](https://arxiv.org/abs/2506.05176)**.
-* All models support **both Dense and MoE variants**, and a **strictly controlled comparison** was run under identical data/hyperparameters — with a counterintuitive conclusion: **at this small scale, Dense (64M) actually outperforms MoE (198M)** (STS 0.478 vs 0.422), corroborating the Qwen3-Embedding family's choice of a Dense architecture throughout. The maximum sequence length is **8192**, covering **Chinese and English** retrieval, STS, classification, and reranking tasks.
+* **Reranker standout**: after fine-tuning, the Dense 64M reaches **MAP@10 0.915** on T2Reranking (zero-shot 0.47 → +94%); see the [Three Bugs Story](#-three-bugs-story-this-projects-most-important-engineering-lesson).
+* **Embedding Dense vs MoE comparison**: a strictly controlled comparison was run under identical data/hyperparameters — with a counterintuitive conclusion: **at this small scale, Dense (64M) actually outperforms MoE (198M)** (STS 0.478 vs 0.422), corroborating the Qwen3-Embedding family's choice of a Dense architecture throughout.
+* All models support **both Dense and MoE variants**, with a maximum sequence length of **8192**, covering **Chinese and English** retrieval, STS, classification, and reranking tasks.
 * All core algorithms (last-token pooling, InfoNCE with false-negative masking, MRL, pointwise yes/no rerank) are implemented from scratch in native PyTorch, without relying on third-party high-level abstractions.
 * The entire training pipeline can run on a **single RTX 5080 (16GB)** (with an optional rented A100 to accelerate the large-scale weak-supervision stage), and ships with a **one-command Docker environment** for seamless migration between local and cloud.
 * Benchmarked on mainstream leaderboards (**C-MTEB / MTEB(eng)**), with models and results open-sourced to the **HuggingFace Hub**.
@@ -79,11 +81,11 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
 
 > ✅ Both the Dense and MoE variants have completed the full three stages. Dense STS 0.48 outperforms MoE 0.42 (see the comparison).
 
-| Model | Type | Params | Backbone | Max length | Status | STS average |
+| Model | Type | Params | Backbone | Max length | Status | Score |
 |-------|------|--------|----------|------------|--------|:---:|
-| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ Three stages done | **0.478** |
-| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | ✅ Three stages done | 0.422 |
-| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ v0 zero-shot (MAP@10 0.47) | — |
+| minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ Three stages done | STS **0.478** |
+| minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | ✅ Three stages done | STS 0.422 |
+| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ Fine-tuning done | MAP@10 **0.915** |
 | minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 TODO | — |
 
 ---
@@ -91,7 +93,19 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
 #### 📝 Changelog
 
 <details>
-<summary><b>🔥 2026-07-29</b></summary>
+<summary><b>🔥 2026-07-29 (evening) — Reranker breakthrough</b></summary>
+
+ - **Reranker MAP@10 jumped from 0.47 to 0.915 (+94%)** after fixing three back-to-back bugs:
+   - **① Label mapping fix**: the `cross_entropy` label is a class index, not a semantic label. Previously `label=1` (relevant) was mapped to index 1 (no), so the direction was completely reversed. Fixed with `target = 1 - labels`
+   - **② Data Leakage fix**: T2Reranking only has a dev split; previously both training and evaluation used it (inflated 0.94). Switched to an 80/20 split → true generalization 0.915
+   - **③ Tokenizer optimization**: `<Query>`/`<Document>` were split by BPE into 5 fragments. Switched to Chinese "查询:"/"文档:" (token count 79→56)
+ - **Previous conclusion overturned**: the "64M small models can't do rerank fine-tuning (catastrophic forgetting)" claim was an artifact of the label bug. After the fix, full-parameter fine-tuning reaches 85% accuracy
+ - Dense Rerank released on HuggingFace: [Muzian/minimind-rerank-dense](https://huggingface.co/Muzian/minimind-rerank-dense)
+
+</details>
+
+<details>
+<summary><b>🔥 2026-07-29 (daytime)</b></summary>
 
  - **MoE variant full three stages complete** (strictly controlled comparison vs Dense):
    - Stage 1 weak supervision: 2827 steps, loss 1.18→0.45
@@ -100,7 +114,7 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
    - **Counterintuitive finding: MoE (198M) STS 0.422 < Dense (64M) STS 0.478**; the higher training-side loss and the lower evaluation-side STS corroborate each other
    - Three causes: MoE fragmentation (expert fragmentation hurts global semantic aggregation), activated params on par with Dense (triple the total params but no growth in effective capacity), and routing overhead (the router is under-trained at this data scale); this corroborates Qwen3-Embedding's choice of a dense design
  - Dense Embedding released on HuggingFace: [Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense)
- - Dense Rerank v0: pure pretrained backbone zero-shot MAP@10=0.47 (best); pointwise fine-tuning actually drops it (catastrophic forgetting)
+ - Dense Rerank v0: pure pretrained backbone zero-shot MAP@10=0.47 (~~pointwise fine-tuning actually drops it, once misjudged as catastrophic forgetting — later confirmed to be a label bug, now fixed; see the 07-29 evening update~~)
 
 </details>
 
@@ -114,7 +128,7 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
  - STS evaluation: Stage2 (0.478) vs Stage3 (0.478); the merge brings no noticeable gain on a small model
  - **Key performance optimization**: num_workers=128 (208-core CPU) raised GPU utilization from an erratic 18~99% to a stable 92~96% saturation
  - **Bottleneck located**: scores are limited by the minimind backbone's vocab=6400 + insufficient Stage 1 data (90k vs Qwen3's 150M)
- - **Rerank key finding**: the pure pretrained backbone's zero-shot MAP@10=0.47 (best); pointwise fine-tuning actually drops it to 0.24 (catastrophic forgetting)
+ - **Rerank early experiment** (later confirmed to be an artifact caused by the label bug, fixed in the 07-29 evening update): at the time, the pure pretrained backbone's zero-shot MAP@10=0.47 was observed while fine-tuning actually dropped it
 
 </details>
 
@@ -287,7 +301,7 @@ The Rerank model reuses existing Chinese tokens from the vocabulary (**no extens
 | `是` (yes) | 357 | Rerank positive target token (relevant) |
 | `否` (no) | 1332 | Rerank negative target token (irrelevant) |
 
-> 💡 **Why reuse existing 是/否 instead of adding `<yes>`/`<no>`**: new tokens have random-initialized embeddings never seen in pretraining. A 64M small model struggles to learn the "relevance → new token" mapping under low lr (empirically it learns backwards). 是/否 are single tokens with clear semantics seen countless times in pretraining — reusing them works best.
+> 💡 **Why reuse existing 是/否 instead of adding `<yes>`/`<no>`**: new tokens have random-initialized embeddings never seen in pretraining. A 64M small model struggles to learn the "relevance → new token" mapping (empirically it learns backwards). 是/否 are single tokens with clear semantics seen countless times in pretraining — reusing them works best.
 
 ## Ⅱ Embedding training data format
 
@@ -625,26 +639,56 @@ python scripts/merge_models.py \
 
 ### 1' Pointwise yes/no fine-tuning
 
-**Rationale** (same as Qwen3-Reranker): model "whether a query-doc pair is relevant" as next-token prediction — let the model output `<yes>` or `<no>` after `[Query]\n[Document]`. This reuses the pretrained lm_head and **introduces no new parameters**.
+**Rationale** (same as Qwen3-Reranker): model "whether a query-doc pair is relevant" as next-token prediction — let the model output `是` (yes) or `否` (no) after the query + document. This reuses the pretrained lm_head and **introduces no new parameters**.
 
-Prompt template:
+Prompt template (optimized — fully Chinese, no BPE fragments):
 
 ```
 <|im_start|>system
-Judge whether the Document meets the requirements based on the Query. Only output "yes" or "no".<|im_end|>
+判断下面的文档是否符合查询需求,只回复是或否<|im_end|>
 <|im_start|>user
-<Query>: {query}
-<Document>: {document}<|im_end|>
+查询:{query}
+文档:{document}<|im_end|>
 <|im_start|>assistant
+<think>
+
+</think>
+
 ```
+
+> The model predicts the next token after `</think>`: `是` (id=357) or `否` (id=1332).
 
 Loss (pointwise cross-entropy):
 
 ```math
-\mathcal{L}_{rerank} = -\frac{1}{N}\sum_{i} \left[ y_i \log p(\text{yes}) + (1-y_i) \log p(\text{no}) \right]
+\mathcal{L}_{rerank} = -\frac{1}{N}\sum_{i} \left[ y_i \log p(\text{是}) + (1-y_i) \log p(\text{否}) \right]
 ```
 
-> ⏳ Training command and loss curve to be added in M3.
+> **⚠️ Implementation Pitfall (a trap this project fell into)**: in `F.cross_entropy(logits, labels)`, `labels` is a **class index**, not a semantic label. `logits` has shape `[B, 2]`, where index 0=`是` and index 1=`否`. If you pass `labels=1` (relevant) directly as the target, the model is trained to "relevant → predict 否" — the direction is completely reversed! The correct way: `target = 1 - labels` (relevant → 0=是, irrelevant → 1=否).
+
+Actual training command (measured on this project):
+
+```bash
+# Full-parameter fine-tuning, label already fixed, first 80% for training (last 20% for evaluation, to avoid data leakage)
+nohup python -u -m minimind_rerank.train \
+    --config rerank_dense_64m --data_type hf --hf_dataset t2reranking --split_ratio 0.8 \
+    --from_weight pretrain --backbone_dir out \
+    --batch_size 16 --epochs 3 --max_length 256 --num_workers 128 --lr 1e-5 \
+    --log_steps 200 --save_steps 2000 \
+    --wandb_project minimind-embedding --wandb_run_name rerank \
+    --device cuda > rerank.log 2>&1 &
+```
+
+**Loss convergence curve** (T2Reranking first 80%, 3 epochs):
+
+| step | epoch | loss | acc |
+|------|-------|------|-----|
+| 1000 | 0 | 0.66 | 60% |
+| 5000 | 0 | 0.58 | 69% |
+| 10000 | 1 | 0.52 | 73% |
+| 15000 | 2 | **0.35** | **85%** |
+
+> Accuracy rose from 60% to 85% — the model genuinely learned relevance judgment.
 
 ---
 
@@ -713,14 +757,35 @@ Detailed JSON: see `results/sts_stage3.json` (Dense) and `results/sts_moe_stage3
 
 ## Ⅱ Rerank results
 
-| Method | T2Reranking MAP@10 | Notes |
-|--------|:---:|------|
-| **Pure pretrained backbone (zero-shot)** | **0.4666** | ✅ Best. Use the rerank prompt directly to let the model predict yes/no |
-| Pointwise fine-tuned (v1/v2) | 0.24 | ❌ Catastrophic forgetting, see analysis below |
+Evaluation method: [C-MTEB/T2Reranking](https://huggingface.co/datasets/C-MTEB/T2Reranking), ranking candidate documents by relevance within each query, computing **MAP@10**. **Training uses the first 80% of queries and evaluation uses the last 20% (completely non-overlapping, no data leakage).**
 
-**Key finding**: for a small 64M backbone like minimind, **full-parameter pointwise fine-tuning actually destroys the discrimination ability the model already had from pre-training** (MAP@10 drops from 0.47 to 0.24). Qwen3-Reranker can succeed with the same method because 0.6B+ parameters are enough to "simultaneously retain pretrained knowledge + learn the new task". Improvement directions for a small reranker: frozen backbone / LoRA / listwise loss.
+| Method | MAP@10 | Accuracy | Notes |
+|--------|:---:|:---:|------|
+| Pure pretrained backbone (zero-shot) | 0.472 | — | baseline — use the prompt to let the model predict 是/否 directly |
+| **Full-parameter fine-tuning + Stage 3 merge** | **0.915** | 85% | ✅ **+94%**, trained after the label fix |
+| Frozen backbone (train lm_head only) | 0.650 | 63% | also works (+38%), but worse than full-parameter |
 
-Detailed JSON: see `results/rerank_pretrain_baseline.json`.
+<div align="center">
+
+![Rerank MAP@10 comparison](./images/rerank_scores.png)
+
+</div>
+
+### 🔍 Three Bugs Story (this project's most important engineering lesson)
+
+During Reranker development, three pitfalls were hit back to back; they **chained together** to create the initial illusion that "all rerank experiments get worse the more you train". Fixing them one by one took MAP@10 from 0.47 to 0.92:
+
+| Bug | Symptom | Root cause | Fix | After fix |
+|-----|---------|------------|-----|-----------|
+| **① Label mapping reversed** | All training runs dropped the score (0.47→0.24) | In `cross_entropy(logits, labels)`, label=1 corresponds to index 1 (否), but the intent was "relevant → 是" (index 0) | `target = 1 - labels` | 0.47→0.65 |
+| **② Data Leakage** | Score inflated (0.94) | T2Reranking only has a dev split; both training and evaluation used it | 80/20 split for train/test | 0.94→0.92 (real) |
+| **③ Tokenizer fragmentation** | Prompt wasted tokens, semantics blurred | `<Query>`/`<Document>` were split by BPE into 5 fragments | Switched to Chinese "查询:"/"文档:" | token count 79→56 |
+
+**Bug ① is the most insidious**: the `labels` argument of `F.cross_entropy` is a **class index** (0/1 represents which class), not the semantic "positive/negative". Our `logits` have shape `[B, 2]`, where `[:, 0]`=`是` and `[:, 1]`=`否`. In the dataset, `label=1` means "relevant"; passing it directly to cross_entropy makes the model learn "relevant → predict 否" — exactly the opposite direction. This bug led all early rerank experiments to the **wrong conclusion** that "small models can't do rerank fine-tuning".
+
+> **Conclusion: the minimind 64M is perfectly suitable for a reranker**. The earlier "catastrophic forgetting" judgment was an artifact of the label bug. After the fix, full-parameter fine-tuning + Stage 3 merge reaches **MAP@10 0.915** with 85% accuracy.
+
+Detailed JSON: see `results/rerank_noleak_stage3.json`.
 
 ## Ⅱ MTEB English results
 
@@ -779,8 +844,8 @@ A: The Dense 64M variant absolutely can (VRAM ~12-14GB). For MoE 198M long-seque
 **Q: Why is the temperature τ=0.02?**
 A: The Qwen3-Embedding report doesn't publish the exact value; community reproductions commonly use 0.02–0.05. 0.02 is an empirical sweet spot for InfoNCE (making similarity differences sharp enough to distinguish positives from negatives).
 
-**Q: Why append `<yes>`/`<no>` instead of using "yes"/"no" directly?**
-A: MiniMind's BPE vocab (vocab=6400) has no reliable single "yes"/"no" token (they'd be split into subwords). Appending special tokens guarantees the Rerank target is a single, deterministic token, avoiding BPE-split uncertainty.
+**Q: Why use 是/否 instead of adding new `<yes>`/`<no>` tokens?**
+A: Initially new `<yes>`/`<no>` special tokens were added, but their embeddings were randomly initialized, and the model struggled to learn the mapping. We then switched to reusing the existing `是` (id=357)/`否` (id=1332) from the vocabulary — single tokens with clear semantics, seen countless times during pretraining. But **the real rerank breakthrough came from fixing the label-mapping bug** (see the "Three Bugs Story" in the Evaluation section); after the fix, MAP@10 jumped from 0.47 to 0.915.
 
 </details>
 
