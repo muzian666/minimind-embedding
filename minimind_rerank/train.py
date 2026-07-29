@@ -62,6 +62,10 @@ def parse_args():
     p.add_argument("--log_steps", type=int, default=50)
     p.add_argument("--device", default="cuda")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--num_workers", type=int, default=4,
+                   help="DataLoader 进程数(云端建议 128)")
+    p.add_argument("--freeze_backbone", action="store_true",
+                   help="冻结底座(model.*),只训练 lm_head(防止灾难性遗忘)")
     # wandb
     p.add_argument("--wandb_project", default="minimind-embedding")
     p.add_argument("--wandb_run_name", default=None)
@@ -113,12 +117,13 @@ def build_dataset(args):
 def save_checkpoint(model, args, config, step):
     os.makedirs(args.save_dir, exist_ok=True)
     moe = "_moe" if config.use_moe else ""
-    name = f"rerank_{config.hidden_size}{moe}.pth"
-    path = os.path.join(args.save_dir, name)
     raw = model.module if hasattr(model, "module") else model
     state = {k: v.half().cpu() for k, v in raw.state_dict().items()}
-    torch.save(state, path)
-    print(f"[save] {path} (step {step})")
+    # 带 step 后缀(供融合用)+ latest(覆盖)
+    for suffix in [f"_step{step}", ""]:
+        name = f"rerank_{config.hidden_size}{moe}{suffix}.pth"
+        torch.save(state, os.path.join(args.save_dir, name))
+    print(f"[save] rerank_{config.hidden_size}{moe}_step{step}.pth + latest")
 
 
 def main():
@@ -143,15 +148,28 @@ def main():
     print(f"参数量: {compute_num_params(model, config)}")
     print(f"yes_token_id={config.yes_token_id}, no_token_id={config.no_token_id}")
 
+    # 冻结底座(可选):只训练 lm_head,防止灾难性遗忘
+    if args.freeze_backbone:
+        for name, param in model.named_parameters():
+            # lm_head 和 embed_tokens 都保留可训练
+            # (rerank 的 tie_word_embeddings=True 时 lm_head.weight = embed_tokens.weight)
+            keep = name.startswith("lm_head") or "embed_tokens" in name
+            param.requires_grad = keep
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad) / 1e6
+        total = sum(p.numel() for p in model.parameters()) / 1e6
+        print(f"[freeze_backbone] 冻结 Transformer 层,保留 lm_head+embed: {trainable:.1f}M / {total:.1f}M 可训练")
+
     # 数据
     ds = build_dataset(args)
     collator = RerankCollator(tokenizer, max_length=args.max_length)
     loader = DataLoader(ds, batch_size=args.batch_size, shuffle=True,
-                        collate_fn=collator, num_workers=0, drop_last=True)
+                        collate_fn=collator, num_workers=args.num_workers,
+                        drop_last=True, pin_memory=True,
+                        persistent_workers=args.num_workers > 0)
 
-    # 优化器
+    # 优化器(只含可训练参数)
     total_steps = math.ceil(len(loader) / args.accumulation_steps) * args.epochs
-    optim = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    optim = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=args.lr)
     print(f"总步数: {total_steps}, batch={args.batch_size}, accum={args.accumulation_steps}")
     wandb_run = init_wandb(args, config)
 
@@ -169,17 +187,21 @@ def main():
             mask = batch["attention_mask"].to(device)
             labels = batch["labels"].to(device)
 
-            # 前向:返回 [B, 2] 的 (yes_logit, no_logit)
+            # 前向:返回 [B, 2] 的 (yes_logit, no_logit),index 0=yes(是), index 1=no(否)
             yn_logits = model(ids, attention_mask=mask)
-            # pointwise 交叉熵:label=1 → yes, label=0 → no
-            loss = F.cross_entropy(yn_logits, labels)
+            # cross_entropy 的 label 是 class index。
+            # 原始 labels: 1=相关(应是), 0=不相关(应否)
+            # 映射到 yn_logits 的 index: 相关→0(yes), 不相关→1(no)
+            # 所以 target = 1 - labels
+            target = (1 - labels).long()
+            loss = F.cross_entropy(yn_logits, target)
 
             (loss / args.accumulation_steps).backward()
             running_loss += loss.item()
-            # 准确率(诊断用)
+            # 准确率(诊断用,基于 target 而非原始 labels)
             with torch.no_grad():
                 pred = yn_logits.argmax(dim=-1)
-                running_acc += (pred == labels).float().mean().item()
+                running_acc += (pred == target).float().mean().item()
             accum_step += 1
 
             if accum_step % args.accumulation_steps == 0:

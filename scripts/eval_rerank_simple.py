@@ -49,7 +49,12 @@ class Reranker:
 
     @torch.inference_mode()
     def score(self, queries, documents):
-        """对 (query, doc) 对打分,返回 yes 概率 [N]。"""
+        """对 (query, doc) 对打分,返回相关性分数 [N]。
+
+        用 logit 差值(yes_logit - no_logit)而非 softmax 概率。
+        原因:softmax 会压缩区分度(当 yes/no logit 都很大时概率差异变小),
+              而 logit 差值保留了原始的排序信号,对 rerank 更有效。
+        """
         scores = []
         for i in range(0, len(queries), self.batch_size):
             qs = queries[i:i + self.batch_size]
@@ -57,9 +62,10 @@ class Reranker:
             enc = build_rerank_inputs(self.tokenizer, qs, ds, max_length=self.max_length)
             ids = enc["input_ids"].to(self.device)
             mask = enc["attention_mask"].to(self.device)
-            # predict 返回 yes 概率 [B]
-            p_yes = self.model.predict(ids, attention_mask=mask)
-            scores.append(p_yes.cpu().float().numpy())
+            # forward 返回 [B, 2] (yes_logit, no_logit),用差值作分数
+            yn_logits = self.model(ids, attention_mask=mask)
+            logit_diff = (yn_logits[:, 0] - yn_logits[:, 1]).cpu().float().numpy()
+            scores.append(logit_diff)
         return np.concatenate(scores) if scores else np.zeros(0)
 
 

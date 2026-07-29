@@ -117,17 +117,19 @@ def _append_eos_and_pad(tokenizer, texts, max_length, return_tensors):
 # ---------------------------------------------------------------------------
 RERANK_PROMPT_TEMPLATE = (
     "<|im_start|>system\n"
-    "判断 Document 是否符合 Query 的需求,只回复'是'或'否'。"
+    "判断下面的文档是否符合查询需求,只回复是或否"
     "<|im_end|>\n"
     "<|im_start|>user\n"
-    "<Query>: {query}\n"
-    "<Document>: {document}<|im_end|>\n"
+    "查询:{query}\n"
+    "文档:{document}<|im_end|>\n"
     "<|im_start|>assistant\n"
     "<think>\n\n</think>\n\n"
 )
-# 注意:末尾 assistant 开头后,模型应输出 "是"(id=357) 或 "否"(id=1332) 作为下一个 token。
-# 经验证:此 prompt 下纯预训练底座就有 MAP@10=0.47 的判别力(POS 是概率 0.84 > NEG 0.78)。
-# pointwise 微调反而会破坏该判别力(灾难性遗忘),故当前版本直接用预训练底座做 reranker。
+# Tokenizer 优化(2026-07-29):
+# 1. 去掉 <Query>/<Document> 标签(BPE 会切成 5 个碎片),改用中文"查询:"/"文档:"
+# 2. 系统提示全中文,避免中英混排导致 Document/Query 被切碎
+# 3. 保留 <think>\n\n</think>\n\n(与 minimind 预训练分布一致,纯底座 MAP@10=0.47)
+# 目标 token:"是"(357) / "否"(1332),均为单 token,无碎片
 
 
 def build_rerank_inputs(
