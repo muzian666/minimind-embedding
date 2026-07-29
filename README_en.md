@@ -63,7 +63,7 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
 
 - Complete **Embedding and Rerank model architecture code** (Dense + MoE), reusing the MiniMind-3 backbone, with heads redesigned for representation learning.
 - A correct **last-token pooling** implementation (compatible with left/right padding, aligned with the official Qwen3-Embedding).
-- A faithful **InfoNCE with false-negative masking** loss implementation (including the $m_{ij}$ mask formula from the Qwen3 report).
+- A faithful **InfoNCE with false-negative masking** loss implementation (including the `m_ij` mask formula from the Qwen3 report).
 - **Matryoshka Representation Learning (MRL)** multi-dimensional output training (768/512/256/128/64).
 - **pointwise yes/no Rerank** implementation (reusing lm_head, modeling relevance judgment as next-token prediction).
 - A full **three-stage training pipeline**: weakly-supervised pre-training → supervised fine-tuning → SLERP model merging.
@@ -377,7 +377,7 @@ Why can a causal (unidirectional) language model also do embedding? This is a ke
 Traditional BERT-style encoders use **bidirectional attention + mean/CLS pooling** (everyone can see everyone; take the average), whereas Qwen3-Embedding does the opposite — it **keeps causal (unidirectional) attention and takes only the last token's hidden state as the sentence vector**. Reasons:
 
 1. **Maximizing weight reuse**: the causal LM's pre-training distribution is identical to the generation model's, so pretrained weights can be loaded directly without re-warmup. Bidirectional attention would break the positional priors learned during pre-training.
-2. **The last token has "seen" the whole sequence**: under causal attention (unidirectional, only looking backward), the token at position $T$ aggregates information from all preceding $T-1$ tokens via attention — just like the person at the back of the line hearing, through the whisper chain, what everyone ahead said. They alone condense the semantics of the whole sentence, making them a natural summary representation.
+2. **The last token has "seen" the whole sequence**: under causal attention (unidirectional, only looking backward), the token at position `T` aggregates information from all preceding `T-1` tokens via attention — just like the person at the back of the line hearing, through the whisper chain, what everyone ahead said. They alone condense the semantics of the whole sentence, making them a natural summary representation.
 3. **Appending EOS as an anchor**: giving the model a clear "end" signal at the sequence end makes the last token's representation more stable.
 
 This project's `shared/utils.py:last_token_pool` faithfully follows the official Qwen3-Embedding-0.6B implementation, correctly handling left/right padding:
@@ -420,7 +420,7 @@ During training, InfoNCE loss is computed **separately for each dimensional slic
 \mathcal{L}_{MRL} = \frac{1}{|D|}\sum_{d \in D} \mathcal{L}_{InfoNCE}(z_{[:d]})
 ```
 
-where $D = \{768, 512, 256, 128, 64\}$. A vector trained this way can be truncated to any dimension for direct use in ANN retrieval, with flexibly adjustable storage and compute cost.
+where `D = {768, 512, 256, 128, 64}`. A vector trained this way can be truncated to any dimension for direct use in ANN retrieval, with flexibly adjustable storage and compute cost.
 
 ---
 
@@ -503,7 +503,7 @@ Overlaying the two curves makes it clearer — MoE's loss stays above Dense's th
 
 **Rationale**: let the model first learn "what kind of text pairs are semantically related". This stage uses large-scale (weakly labeled) data and relies on large batches for sufficient negative-sample signal, using **standard InfoNCE** (no false-negative mask — because weakly-supervised data is noisy and the mask would wrongly suppress true negatives).
 
-#### What is InfoNCE? (primary-school version)
+#### What is InfoNCE? (in plain English)
 
 > 🧒 **Analogy**: imagine playing "find your friend". You're handed a photo (the query) and must pick your friend (the positive) out of a pile of photos, where everyone else (the negatives) is not your friend. InfoNCE trains your "eye" — pushing the score of the right friend as high as possible and the scores of strangers as low as possible.
 
@@ -526,7 +526,7 @@ $$\text{loss} = -\log \frac{\text{positive score}}{\text{positive score} + \text
 \mathcal{L}_{InfoNCE} = -\frac{1}{N}\sum_{i=1}^{N} \log \frac{\exp(s(q_i, d_i^+)/\tau)}{\exp(s(q_i, d_i^+)/\tau) + \sum_{j \neq i} \exp(s(q_i, d_j)/\tau)}
 ```
 
-where $s(\cdot,\cdot)$ is cosine similarity and $\tau=0.02$ is the temperature (sharpening the score differences: a friend's score must be "clearly" higher than a stranger's).
+where `s(·,·)` is cosine similarity and `τ=0.02` is the temperature (sharpening the score differences: a friend's score must be "clearly" higher than a stranger's).
 
 > 💡 **The role of temperature τ**: the smaller τ, the "stricter" the model — the positive must beat the negatives by a wide margin to pass; the larger τ, the more "lenient". 0.02 is an empirical value that makes the model learn fast and stably.
 
@@ -544,7 +544,7 @@ docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embe
 
 **Rationale**: fine-tune on high-quality labeled data, introducing hard negatives and **false-negative masking**.
 
-#### Why a "false-negative mask"? (primary-school version)
+#### Why a "false-negative mask"? (in plain English)
 
 > 🧒 **The problem**: during training we treat "irrelevant" text as a negative and push the model away from it. But what if that "negative" is actually related to the query? For example, the query asks "how to treat a cold", and a negative slips in reading "a cold needs symptomatic treatment and rest" — it's clearly relevant, yet it's being used as a counter-example. If the model pushes hard away from it, it actually learns the wrong thing!
 
@@ -566,7 +566,7 @@ $$\mathcal{L} = -\frac{1}{N}\sum_{i} \log \frac{e^{s(q_i,d_i^+)/\tau}}{Z_i}$$
 
 $$Z_i = e^{s(q_i,d_i^+)/\tau} + \underbrace{\sum_k m_{ik} e^{s(q_i,d_{i,k}^-)/\tau}}_{\text{hard negatives}} + \underbrace{\sum_{j\neq i} m_{ij} e^{s(q_i,q_j)/\tau}}_{\text{in-batch query-query}} + \underbrace{\sum_{j\neq i} m_{ij} e^{s(d_i^+,d_j)/\tau}}_{\text{in-batch doc-doc}}$$
 
-> 💡 **Intuition**: the denominator $Z_i$ aggregates the positive + all negatives (hard neg + in-batch neg), but every negative is multiplied by the mask $m_{ij}$ — a false negative's mask=0 makes it vanish from the denominator automatically, so it is never wrongly pushed away.
+> 💡 **Intuition**: the denominator `Z_i` aggregates the positive + all negatives (hard neg + in-batch neg), but every negative is multiplied by the mask `m_ij` — a false negative's mask=0 makes it vanish from the denominator automatically, so it is never wrongly pushed away.
 
 Actual training command (measured on this project):
 

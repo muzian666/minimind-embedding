@@ -63,7 +63,7 @@
 
 - 提供完整的 **Embedding 与 Rerank 模型结构代码**（Dense + MoE），底座复用 MiniMind-3，head 层面向表示学习重新设计。
 - 提供 **last-token pooling** 的正确实现（兼容左/右 padding，对齐 Qwen3-Embedding 官方）。
-- 提供 **InfoNCE 带假负样本 mask** 的损失函数逐字实现（含 Qwen3 报告里的 $m_{ij}$ mask 公式）。
+- 提供 **InfoNCE 带假负样本 mask** 的损失函数逐字实现（含 Qwen3 报告里的 `m_ij` mask 公式）。
 - 提供 **Matryoshka Representation Learning (MRL)** 多维度输出训练（768/512/256/128/64）。
 - 提供 **pointwise yes/no Rerank** 实现（复用 lm_head，把相关性判断建模为下一个 token 预测）。
 - 覆盖 **三阶段训练流程**：弱监督预训练 → 监督微调 → SLERP 模型融合。
@@ -377,7 +377,7 @@ Rerank 模型复用词表中现成的中文 token：
 传统的 BERT 风格 encoder 用**双向注意力 + mean/CLS pool**（每个人都能看到所有人，取平均），而 Qwen3-Embedding 反其道而行，**保留 causal（单向）注意力，只取最后一个 token（EOS）的 hidden state 作为整句向量**。原因在于：
 
 1. **权重复用最大化**：causal LM 的预训练分布与生成模型完全一致，可直接加载预训练权重，无需重新预热。双向 attention 会破坏预训练学到的位置先验。
-2. **最后一个 token "看过"整个序列**：在 causal attention 下（单向，只能看前面），位置 $T$ 的 token 通过注意力机制聚合了前 $T-1$ 个 token 的全部信息，就像排队末尾的人通过传话听到了前面所有人的话——他一个人就浓缩了整句的语义，天然适合作为摘要表示。
+2. **最后一个 token "看过"整个序列**：在 causal attention 下（单向，只能看前面），位置 `T` 的 token 通过注意力机制聚合了前 `T-1` 个 token 的全部信息，就像排队末尾的人通过传话听到了前面所有人的话——他一个人就浓缩了整句的语义，天然适合作为摘要表示。
 3. **末尾追加 EOS 作为锚点**：让模型在序列末尾看到一个明确的"结束"信号，使最后一个 token 的表示更加稳定。
 
 本项目的 `shared/utils.py:last_token_pool` 严格对齐 Qwen3-Embedding-0.6B 官方实现，正确处理左/右 padding：
@@ -420,7 +420,7 @@ Matryoshka Representation Learning（Kusupati et al., 2022，俄罗斯套娃表�
 \mathcal{L}_{MRL} = \frac{1}{|D|}\sum_{d \in D} \mathcal{L}_{InfoNCE}(z_{[:d]})
 ```
 
-其中 $D = \{768, 512, 256, 128, 64\}$。这样训练出的向量，截断到任意维度都可直接用于 ANN 检索，存储与计算成本灵活可调。
+其中 `D = {768, 512, 256, 128, 64}`。这样训练出的向量，截断到任意维度都可直接用于 ANN 检索，存储与计算成本灵活可调。
 
 ---
 
@@ -503,7 +503,7 @@ MoE 版本在同一份数据与超参下也完成了完整三阶段，其训练�
 
 **理念**：让模型先学会"什么样的文本对是语义相关的"。这一阶段使用大规模（弱标注）数据，依赖大 batch 提供足够的负样本信号，使用**标准 InfoNCE**（不带假负样本 mask——因为弱监督数据噪声大，mask 反而会误伤真负样本）。
 
-#### InfoNCE 是什么？（小学生版）
+#### InfoNCE 是什么？（人话版）
 
 > 🧒 **类比**：想象你在玩"找朋友"游戏。给你一张照片（query），要从一堆照片里找出你的好朋友（正样本），其他人（负样本）都不是你的朋友。InfoNCE 就是训练你的"眼力"——让正确朋友的得分尽量高，陌生人的得分尽量低。
 
@@ -526,7 +526,7 @@ $$\text{loss} = -\log \frac{\text{正样本得分}}{\text{正样本得分} + \te
 \mathcal{L}_{InfoNCE} = -\frac{1}{N}\sum_{i=1}^{N} \log \frac{\exp(s(q_i, d_i^+)/\tau)}{\exp(s(q_i, d_i^+)/\tau) + \sum_{j \neq i} \exp(s(q_i, d_j)/\tau)}
 ```
 
-其中 $s(\cdot,\cdot)$ 为 cosine 相似度，$\tau=0.02$ 为温度（让得分差异更尖锐：好朋友的得分要"明显"高于陌生人）。
+其中 `s(·,·)` 为 cosine 相似度，`τ=0.02` 为温度（让得分差异更尖锐：好朋友的得分要"明显"高于陌生人）。
 
 > 💡 **温度 τ 的作用**：τ 越小，模型越"严格"——正样本必须比负样本高很多才算过关；τ 越大，越"宽容"。0.02 是经验值，让模型学得又快又稳。
 
@@ -544,7 +544,7 @@ docker compose -f docker/docker-compose.yml run --rm dev python -m minimind_embe
 
 **理念**：在高质量标注数据上精细调整，引入 hard negatives（困难负样本）和**假负样本 mask**。
 
-#### 为什么要"假负样本 mask"？（小学生版）
+#### 为什么要"假负样本 mask"？（人话版）
 
 > 🧒 **问题**：训练时我们会把"不相关"的文本当负样本，让模型远离它。但万一这个"负样本"其实和 query 是相关的呢？比如 query 问"感冒怎么治"，负样本里混进了一条"感冒需要对症治疗，注意休息"——它明明也相关，却被当成反面教材。模型如果拼命远离它，反而学坏了！
 
@@ -566,7 +566,7 @@ $$\mathcal{L} = -\frac{1}{N}\sum_{i} \log \frac{e^{s(q_i,d_i^+)/\tau}}{Z_i}$$
 
 $$Z_i = e^{s(q_i,d_i^+)/\tau} + \underbrace{\sum_k m_{ik} e^{s(q_i,d_{i,k}^-)/\tau}}_{\text{hard negatives}} + \underbrace{\sum_{j\neq i} m_{ij} e^{s(q_i,q_j)/\tau}}_{\text{批内 query-query}} + \underbrace{\sum_{j\neq i} m_{ij} e^{s(d_i^+,d_j)/\tau}}_{\text{批内 doc-doc}}$$
 
-> 💡 **直觉**：分母 $Z_i$ 聚合了正样本 + 所有负样本（hard neg + 批内 neg），但每个负样本都乘了 mask $m_{ij}$——假负样本的 mask=0，自动从分母里消失，不会被错误地推远。
+> 💡 **直觉**：分母 `Z_i` 聚合了正样本 + 所有负样本（hard neg + 批内 neg），但每个负样本都乘了 mask `m_ij`——假负样本的 mask=0，自动从分母里消失，不会被错误地推远。
 
 实际训练命令（本项目实测）:
 
