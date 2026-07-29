@@ -1,0 +1,5 @@
+{
+  "checkpoint": "/root/minimind-embeddings/out/pretrain_768.pth",
+  "T2Reranking_MAP@10": 0.47164634750492035,
+  "n": 1178
+}

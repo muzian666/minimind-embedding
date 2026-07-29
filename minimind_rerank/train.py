@@ -49,6 +49,8 @@ def parse_args():
     p.add_argument("--data_type", default="demo", choices=["demo", "jsonl", "hf"])
     p.add_argument("--jsonl_path", default="data/rerank_train.jsonl")
     p.add_argument("--hf_dataset", default="t2reranking")
+    p.add_argument("--split_ratio", type=float, default=0.0,
+                   help="训练/测试切分比例(>0 时启用,如 0.8=前80%训练,避免数据泄露)")
     p.add_argument("--max_train_samples", type=int, default=0)
     # 训练
     p.add_argument("--batch_size", type=int, default=16)
@@ -104,7 +106,7 @@ def build_dataset(args):
     elif args.data_type == "jsonl":
         ds = RerankJsonlDataset(args.jsonl_path)
     elif args.data_type == "hf":
-        ds = HFRerankDataset(args.hf_dataset)
+        ds = HFRerankDataset(args.hf_dataset, split_ratio=args.split_ratio, split_part="train")
     else:
         raise ValueError(args.data_type)
     if args.max_train_samples > 0:

@@ -75,7 +75,15 @@ class HFRerankDataset(Dataset):
     }
 
     def __init__(self, dataset_name: str, split: str = "dev",
-                 cache_dir: Optional[str] = None):
+                 cache_dir: Optional[str] = None,
+                 split_ratio: float = 0.0, split_part: str = "train"):
+        """加载数据。
+
+        split_ratio > 0 时,按比例把数据切成 train/test 两份(避免数据泄露):
+          split_ratio=0.8, split_part="train" → 用前 80% 训练
+          split_ratio=0.8, split_part="test"  → 用后 20% 评测
+        split_ratio=0 时,用整个 split(T2Reranking 只有 dev,旧默认行为)。
+        """
         from datasets import load_dataset
         if dataset_name not in self._ADAPTERS:
             raise ValueError(f"未知 dataset_name '{dataset_name}',支持: {list(self._ADAPTERS.keys())}")
@@ -100,6 +108,16 @@ class HFRerankDataset(Dataset):
         for row in self.ds:
             for q, d, lab in self._adapter(row):
                 self._samples.append((q, d, lab))
+        # 按比例切分(避免数据泄露)
+        if split_ratio > 0 and split_ratio < 1:
+            n = len(self._samples)
+            cut = int(n * split_ratio)
+            if split_part == "train":
+                self._samples = self._samples[:cut]
+                print(f"[HFRerankDataset] 训练集切分: 前 {cut}/{n} 条(避免泄露)")
+            else:
+                self._samples = self._samples[cut:]
+                print(f"[HFRerankDataset] 测试集切分: 后 {n-cut}/{n} 条(避免泄露)")
         print(f"[HFRerankDataset] 展开后共 {len(self._samples)} 条 (q,d,label) 对")
 
     def __len__(self):

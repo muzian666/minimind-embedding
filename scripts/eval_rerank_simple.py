@@ -82,11 +82,22 @@ def compute_map_at_k(ranked_relevance, k=10):
     return sum_prec / min(n_rel, k) if n_rel > 0 else 0.0
 
 
-def eval_t2reranking(reranker):
-    """评测 C-MTEB/T2Reranking。返回 MAP@10。"""
+def eval_t2reranking(reranker, split_ratio=0.0, split_part="test"):
+    """评测 C-MTEB/T2Reranking。返回 MAP@10。
+
+    split_ratio>0 时,只评测切分后的指定部分(避免与训练数据重叠)。
+    """
     from datasets import load_dataset
     print("  加载 C-MTEB/T2Reranking ...")
     ds = load_dataset("C-MTEB/T2Reranking")["dev"]
+    if split_ratio > 0 and split_ratio < 1:
+        n = len(ds)
+        cut = int(n * split_ratio)
+        if split_part == "test":
+            ds = ds.select(range(cut, n))
+            print(f"  测试集切分: 后 {n-cut}/{n} 条(避免泄露)")
+        else:
+            ds = ds.select(range(0, cut))
     print(f"  样本(query)数: {len(ds)}")
 
     # 用 ast.literal_eval 解析 list 字段(positive/negative 是字符串形式 list)
@@ -130,6 +141,8 @@ def parse_args():
     p.add_argument("--max_length", type=int, default=256)
     p.add_argument("--batch_size", type=int, default=64)
     p.add_argument("--output", default="results/rerank_scores.json")
+    p.add_argument("--split_ratio", type=float, default=0.0,
+                   help="与训练一致的切分比例(>0 时只评测 test 部分,避免泄露)")
     return p.parse_args()
 
 
@@ -143,7 +156,7 @@ def main():
         device=args.device, max_length=args.max_length, batch_size=args.batch_size,
     )
 
-    map10, n = eval_t2reranking(reranker)
+    map10, n = eval_t2reranking(reranker, split_ratio=args.split_ratio, split_part="test")
     print("\n" + "=" * 40)
     print(f"C-MTEB/T2Reranking MAP@10: {map10:.4f}  (n={n})")
     print("=" * 40)
