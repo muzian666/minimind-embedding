@@ -50,9 +50,10 @@ def build_st_directory(checkpoint, config_name, output_dir, task):
     print(f"  ✓ model.safetensors ({len(clean)} 参数)")
 
     # 2) config.json (transformers,minimind 架构)
+    is_rerank = "Rerank" in type(config).__name__
     cfg = {
         "model_type": "minimind",
-        "architectures": ["MiniMindForEmbedding"],
+        "architectures": ["MiniMindForRerank"] if is_rerank else ["MiniMindForEmbedding"],
         "hidden_size": config.hidden_size,
         "num_hidden_layers": config.num_hidden_layers,
         "num_attention_heads": config.num_attention_heads,
@@ -67,11 +68,18 @@ def build_st_directory(checkpoint, config_name, output_dir, task):
         "eos_token_id": config.eos_token_id,
         "tie_word_embeddings": False,
         "use_moe": config.use_moe,
-        "embed_dim": config.embed_dim,
-        "mrl_dims": config.mrl_dims,
-        "pooling": "last_token",
         "torch_dtype": "float16",
     }
+    # embedding 专属字段
+    if not is_rerank:
+        cfg["embed_dim"] = config.embed_dim
+        cfg["mrl_dims"] = config.mrl_dims
+        cfg["pooling"] = "last_token"
+    # rerank 专属字段
+    if is_rerank:
+        cfg["yes_token_id"] = config.yes_token_id
+        cfg["no_token_id"] = config.no_token_id
+        cfg["task"] = "rerank"
     if config.use_moe:
         cfg.update({
             "num_experts": config.num_experts,
@@ -91,45 +99,46 @@ def build_st_directory(checkpoint, config_name, output_dir, task):
             shutil.copy(src, os.path.join(output_dir, f))
     print("  ✓ tokenizer 文件")
 
-    # 4) sentence-transformers 模块链
-    modules = [
-        {"idx": 0, "name": "0", "type": "sentence_transformers.models.Transformer"},
-        {"idx": 1, "name": "1", "type": "sentence_transformers.models.Pooling",
-         "args": {"word_embedding_dimension": config.embed_dim, "pooling_mode_lasttoken": True}},
-    ]
-    with open(os.path.join(output_dir, "modules.json"), "w") as f:
-        json.dump(modules, f, indent=2)
-    print("  ✓ modules.json")
+    # 4-6) sentence-transformers 兼容文件(仅 embedding 需要,rerank 跳过)
+    if not is_rerank:
+        modules = [
+            {"idx": 0, "name": "0", "type": "sentence_transformers.models.Transformer"},
+            {"idx": 1, "name": "1", "type": "sentence_transformers.models.Pooling",
+             "args": {"word_embedding_dimension": config.embed_dim, "pooling_mode_lasttoken": True}},
+        ]
+        with open(os.path.join(output_dir, "modules.json"), "w") as f:
+            json.dump(modules, f, indent=2)
+        print("  ✓ modules.json")
 
-    # 5) ST 元配置(query/document prompt)
-    st_cfg = {
-        "__version__": {"sentence_transformers": "5.0.0"},
-        "prompts": {
-            "query": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: ",
-        },
-        "default_prompt_name": None,
-        "similarity_fn_name": "cosine",
-    }
-    with open(os.path.join(output_dir, "config_sentence_transformers.json"), "w") as f:
-        json.dump(st_cfg, f, indent=2)
-    print("  ✓ config_sentence_transformers.json")
+        st_cfg = {
+            "__version__": {"sentence_transformers": "5.0.0"},
+            "prompts": {
+                "query": "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: ",
+            },
+            "default_prompt_name": None,
+            "similarity_fn_name": "cosine",
+        }
+        with open(os.path.join(output_dir, "config_sentence_transformers.json"), "w") as f:
+            json.dump(st_cfg, f, indent=2)
+        print("  ✓ config_sentence_transformers.json")
 
-    # 6) 1_Pooling 配置
-    pool_dir = os.path.join(output_dir, "1_Pooling")
-    os.makedirs(pool_dir, exist_ok=True)
-    pool_cfg = {
-        "word_embedding_dimension": config.embed_dim,
-        "pooling_mode_cls_token": False,
-        "pooling_mode_mean_tokens": False,
-        "pooling_mode_max_tokens": False,
-        "pooling_mode_mean_sqrt_len_tokens": False,
-        "pooling_mode_weightedmean_tokens": False,
-        "pooling_mode_lasttoken": True,
-        "include_prompt": True,
-    }
-    with open(os.path.join(pool_dir, "config.json"), "w") as f:
-        json.dump(pool_cfg, f, indent=2)
-    print("  ✓ 1_Pooling/config.json (last-token pooling)")
+        pool_dir = os.path.join(output_dir, "1_Pooling")
+        os.makedirs(pool_dir, exist_ok=True)
+        pool_cfg = {
+            "word_embedding_dimension": config.embed_dim,
+            "pooling_mode_cls_token": False,
+            "pooling_mode_mean_tokens": False,
+            "pooling_mode_max_tokens": False,
+            "pooling_mode_mean_sqrt_len_tokens": False,
+            "pooling_mode_weightedmean_tokens": False,
+            "pooling_mode_lasttoken": True,
+            "include_prompt": True,
+        }
+        with open(os.path.join(pool_dir, "config.json"), "w") as f:
+            json.dump(pool_cfg, f, indent=2)
+        print("  ✓ 1_Pooling/config.json (last-token pooling)")
+    else:
+        print("  (rerank 模型,跳过 sentence-transformers 兼容文件)")
 
     print(f"\n打包完成 -> {output_dir}")
 
