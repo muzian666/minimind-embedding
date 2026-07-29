@@ -61,7 +61,7 @@ def parse_args():
     # 数据
     p.add_argument("--stage", type=int, default=2, choices=[1, 2],
                    help="1=弱监督(纯in-batch), 2=监督(hard neg+MRL)")
-    p.add_argument("--data_type", default="demo", choices=["demo", "jsonl", "hf"])
+    p.add_argument("--data_type", default="demo", choices=["demo", "jsonl", "hf", "mixed"])
     p.add_argument("--jsonl_path", default="data/embedding_train.jsonl")
     p.add_argument("--hf_dataset", default="t2ranking")
     p.add_argument("--max_negatives", type=int, default=7)
@@ -134,6 +134,15 @@ def build_dataset(args):
         ds = TripletJsonlDataset(args.jsonl_path, max_negatives=args.max_negatives)
     elif args.data_type == "jsonl":
         ds = TripletJsonlDataset(args.jsonl_path, max_negatives=args.max_negatives)
+    elif args.data_type == "mixed":
+        # 多源混合 Stage1 数据(t2ranking + XNLI + AFQMC + STSB)
+        from minimind_embedding.mixed_dataset import MixedTripletDataset
+        path = args.jsonl_path if os.path.isabs(args.jsonl_path) else os.path.join(_ROOT, args.jsonl_path)
+        if not os.path.exists(path):
+            print(f"[mixed] 数据不存在,先构建: {path}")
+            from minimind_embedding.mixed_dataset import build_mixed_stage1
+            build_mixed_stage1(path)
+        ds = MixedTripletDataset(path, max_negatives=args.max_negatives)
     elif args.data_type == "hf":
         ds = HFEmbeddingDataset(args.hf_dataset, max_negatives=args.max_negatives)
     else:

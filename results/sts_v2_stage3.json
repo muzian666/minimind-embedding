@@ -1,0 +1,10 @@
+{
+  "checkpoint": "/root/minimind-embeddings/checkpoints/embedding/embedding_stage3_768_v2.pth",
+  "scores": {
+    "ATEC": 0.330520948704717,
+    "BQ": 0.40017759320773877,
+    "LCQMC": 0.5776295571115433,
+    "STSB": 0.6109345351917793,
+    "_average": 0.4798156585539446
+  }
+}
