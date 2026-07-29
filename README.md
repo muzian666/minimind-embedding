@@ -29,7 +29,9 @@
 </div>
 
 * 本项目基于开源的 **[MiniMind](https://github.com/jingyaogong/minimind)** 小型语言模型（64M / 198M-A64M）作为底座，从零训练一套完整的 **文本 Embedding 与 Rerank 模型**，技术路线完全对齐 **[Qwen3-Embedding](https://arxiv.org/abs/2506.05176)**。
-* 全套模型支持 **Dense 与 MoE 双版本**，并在相同数据/超参下完成**严格受控对比**——结论是反直觉的：**在小规模下，Dense(64M) 反而优于 MoE(198M)**（STS 0.478 vs 0.422），这印证了 Qwen3-Embedding 全系列选 Dense 架构的判断。最大序列长度 **8192**，覆盖 **中英文** 检索、STS、分类与重排任务。
+* **Reranker 表现亮眼**：Dense 64M 微调后 T2Reranking MAP@10 达 **0.915**（零样本 0.47 → +94%），详见[三个 Bug 的故事](#-三个-bug-的故事本项目最重要的工程教训)。
+* **Embedding 的 Dense vs MoE 对比**：在相同数据/超参下完成严格受控对比——**Dense(64M) 反而优于 MoE(198M)**（STS 0.478 vs 0.422），这印证了 Qwen3-Embedding 全系列选 Dense 架构的判断。
+* 全套模型支持 **Dense 与 MoE 双版本**，最大序列长度 **8192**，覆盖 **中英文** 检索、STS、分类与重排任务。
 * 所有核心算法（last-token pooling、InfoNCE 带假负样本 mask、MRL、pointwise yes/no rerank）均从 0 用 PyTorch 原生实现，不依赖第三方高层抽象。
 * 训练全程可在 **单卡 RTX 5080（16GB）** 上完成（大规模弱监督阶段可选租 A100 加速），并提供 **Docker 一键环境**，本地与云端无缝迁移。
 * 参加主流评测榜单 **C-MTEB / MTEB(eng)**，模型与结果均开源至 **HuggingFace Hub**。
@@ -83,7 +85,7 @@
 |------|------|--------|------|----------|------|:---:|
 | minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ 三阶段完成 | **0.478** |
 | minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | ✅ 三阶段完成 | 0.422 |
-| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ v0 零样本(MAP@10 0.47) | — |
+| minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ 微调完成 | **0.915** |
 | minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 | — |
 
 ---
@@ -91,7 +93,19 @@
 #### 📝 更新日志
 
 <details>
-<summary><b>🔥 2026-07-29</b></summary>
+<summary><b>🔥 2026-07-29 (晚) — Reranker 重大突破</b></summary>
+
+ - **Reranker MAP@10 从 0.47 飙升到 0.915（+94%）**，连续修复三个串联 bug:
+   - **① Label 映射修复**: `cross_entropy` 的 label 是 class index 不是语义标签,之前 label=1(相关)被映射到 index 1(否),方向完全反。修复 `target = 1 - labels`
+   - **② 数据泄露修复**: T2Reranking 只有 dev split,之前训练和评测都用它(分数虚高 0.94)。改为 80/20 切分,真实泛化 0.915
+   - **③ Tokenizer 优化**: `<Query>`/`<Document>` 被 BPE 切成 5 碎片,改用中文"查询:"/"文档:"(token 数 79→56)
+ - **推翻之前结论**: "64M 小模型不能做 rerank 微调（灾难性遗忘）"是 label bug 的假象。修复后全参数微调 acc 达 85%
+ - Dense Rerank 已发布 HuggingFace: [Muzian/minimind-rerank-dense](https://huggingface.co/Muzian/minimind-rerank-dense)
+
+</details>
+
+<details>
+<summary><b>🔥 2026-07-29 (白天)</b></summary>
 
  - **MoE 版本完整三阶段完成**(严格受控对比 Dense):
    - Stage1 弱监督:2827 步,loss 1.18→0.45
@@ -100,7 +114,7 @@
    - **反直觉发现:MoE(198M) STS 0.422 < Dense(64M) STS 0.478**,训练侧 loss 更高与评测侧 STS 更低相互印证
    - 三大原因:MoE fragmentation(专家割裂损害全局语义聚合)、激活参数与 Dense 持平(总参翻 3 倍但有效容量没涨)、routing overhead(路由在有限数据下未学好);印证 Qwen3-Embedding 选 dense 的设计
  - Dense Embedding 已发布 HuggingFace: [Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense)
- - Dense Rerank v0:纯预训练底座零样本 MAP@10=0.47(最佳),pointwise 微调反降(灾难性遗忘)
+ - Dense Rerank v0:纯预训练底座零样本 MAP@10=0.47(~~pointwise 微调反降,曾误判为灾难性遗忘,后证实是 label bug,已修复,见 07-29 晚更新~~)
 
 </details>
 
@@ -114,7 +128,7 @@
  - STS 评测:Stage2(0.478) vs Stage3(0.478),融合在小模型上收益不明显
  - **关键性能优化**:num_workers=128(208核CPU)将 GPU 利用率从 18~99% 波动提升到 92~96% 稳定满载
  - **瓶颈定位**:分数受限于 minimind 底座 vocab=6400 + Stage1 数据量不足(9万 vs Qwen3 的1.5亿)
- - **Rerank 重要发现**:纯预训练底座零样本 MAP@10=0.47(最佳),pointwise 微调反降至0.24(灾难性遗忘)
+ - **Rerank 早期实验**(后被证实是 label bug 导致的假象,已在 07-29 晚修复):当时观察到纯底座零样本 MAP@10=0.47 而微调反降
 
 </details>
 
@@ -625,26 +639,56 @@ python scripts/merge_models.py \
 
 ### 1' Pointwise yes/no 微调
 
-**理念**（Qwen3-Reranker 同款）：把"判断 query-doc 是否相关"建模成下一个 token 预测——让模型在 `[Query]\n[Document]` 之后输出 `是` 或 `否`。复用预训练的 lm_head，**不引入任何新参数**。
+**理念**（Qwen3-Reranker 同款）：把"判断 query-doc 是否相关"建模成下一个 token 预测——让模型在查询+文档之后输出 `是` 或 `否`。复用预训练的 lm_head，**不引入任何新参数**。
 
-Prompt 模板：
+Prompt 模板（优化后，全中文 + 无 BPE 碎片）：
 
 ```
 <|im_start|>system
-Judge whether the Document meets the requirements based on the Query. Only output "yes" or "no".<|im_end|>
+判断下面的文档是否符合查询需求,只回复是或否<|im_end|>
 <|im_start|>user
-<Query>: {query}
-<Document>: {document}<|im_end|>
+查询:{query}
+文档:{document}<|im_end|>
 <|im_start|>assistant
+<think>
+
+</think>
+
 ```
+
+> 模型在 `</think>` 后预测下一个 token：`是`(id=357) 或 `否`(id=1332)。
 
 损失（pointwise 交叉熵）：
 
 ```math
-\mathcal{L}_{rerank} = -\frac{1}{N}\sum_{i} \left[ y_i \log p(\text{yes}) + (1-y_i) \log p(\text{no}) \right]
+\mathcal{L}_{rerank} = -\frac{1}{N}\sum_{i} \left[ y_i \log p(\text{是}) + (1-y_i) \log p(\text{否}) \right]
 ```
 
-> ⏳ 训练命令与 loss 曲线待 M3 补充。
+> **⚠️ 实现陷阱（本项目踩过的坑）**：`F.cross_entropy(logits, labels)` 中 `labels` 是 **class index**，不是语义标签。`logits` 形状 `[B, 2]`，index 0=`是`，index 1=`否`。若直接用 `labels=1`(相关) 作 target，模型会被训练成"相关→预测否"——方向完全反了！正确写法：`target = 1 - labels`（相关→0=是，不相关→1=否）。
+
+实际训练命令（本项目实测）:
+
+```bash
+# 全参数微调,label 已修复,前 80% 训练(后 20% 评测,避免泄露)
+nohup python -u -m minimind_rerank.train \
+    --config rerank_dense_64m --data_type hf --hf_dataset t2reranking --split_ratio 0.8 \
+    --from_weight pretrain --backbone_dir out \
+    --batch_size 16 --epochs 3 --max_length 256 --num_workers 128 --lr 1e-5 \
+    --log_steps 200 --save_steps 2000 \
+    --wandb_project minimind-embedding --wandb_run_name rerank \
+    --device cuda > rerank.log 2>&1 &
+```
+
+**Loss 收敛曲线**（T2Reranking 前 80%，3 epoch）:
+
+| step | epoch | loss | acc |
+|------|-------|------|-----|
+| 1000 | 0 | 0.66 | 60% |
+| 5000 | 0 | 0.58 | 69% |
+| 10000 | 1 | 0.52 | 73% |
+| 15000 | 2 | **0.35** | **85%** |
+
+> 准确率从 60% 升到 85%，模型真正学会了相关性判断。
 
 ---
 
@@ -713,14 +757,35 @@ Judge whether the Document meets the requirements based on the Query. Only outpu
 
 ## Ⅱ Rerank 结果
 
-| 方案 | T2Reranking MAP@10 | 说明 |
-|------|:---:|------|
-| **纯预训练底座(零样本)** | **0.4666** | ✅ 最佳。直接用 rerank prompt 让模型预测"是/否" |
-| pointwise 微调(v1/v2) | 0.24 | ❌ 灾难性遗忘,详见下方分析 |
+评测方法：[C-MTEB/T2Reranking](https://huggingface.co/datasets/C-MTEB/T2Reranking)，按 query 内候选文档的相关性排序，计算 **MAP@10**。**训练用前 80% query，评测用后 20%（完全不重叠，无数据泄露）**。
 
-**重要发现**：对 minimind 这种 64M 小底座,**全参数 pointwise 微调反而破坏了预训练已有的判别能力**(MAP@10 从 0.47 降至 0.24)。Qwen3-Reranker 能用同样方法成功,是因为 0.6B+ 参数足以"同时保留预训练知识 + 学新任务"。小模型的 reranker 改进方向:冻结底座/LoRA/listwise loss。
+| 方案 | MAP@10 | 准确率 | 说明 |
+|------|:---:|:---:|------|
+| 纯预训练底座（零样本） | 0.472 | — | baseline，直接用 prompt 让模型预测"是/否" |
+| **全参数微调 + Stage3 融合** | **0.915** | 85% | ✅ **+94%**，label 修复后训练 |
+| 冻结底座（仅训 lm_head） | 0.650 | 63% | 也有效（+38%），但不如全参数 |
 
-详细 JSON：见 `results/rerank_pretrain_baseline.json`。
+<div align="center">
+
+![Rerank MAP@10 对比](./images/rerank_scores.png)
+
+</div>
+
+### 🔍 三个 Bug 的故事（本项目最重要的工程教训）
+
+Reranker 的开发过程中连续踩了三个坑，它们**串联**导致了最初所有 rerank 实验"越训越差"的假象。逐一修复后 MAP@10 从 0.47 飙升到 0.92：
+
+| Bug | 症状 | 根因 | 修复 | 修复后 |
+|-----|------|------|------|--------|
+| **① Label 映射反了** | 所有训练都降分（0.47→0.24） | `cross_entropy(logits, labels)` 中 label=1 对应 index 1（否），但意图是"相关→是"(index 0) | `target = 1 - labels` | 0.47→0.65 |
+| **② 数据泄露** | 分数虚高（0.94） | T2Reranking 只有 dev split，训练和评测都用它 | 80/20 切分训练/测试 | 0.94→0.92（真实） |
+| **③ Tokenizer 碎片** | prompt 浪费 token，语义模糊 | `<Query>`/`<Document>` 被 BPE 切成 5 个碎片 | 改用中文"查询:"/"文档:" | token 数 79→56 |
+
+**Bug ① 是最隐蔽的**：`F.cross_entropy` 接收的 `labels` 参数是 **class index**（0/1 代表第几个类别），而不是语义上的"正/负"。我们的 logits 形状 `[B, 2]`，`[:, 0]`=`是`，`[:, 1]`=`否`。数据集里 `label=1` 表示"相关"，直接传给 cross_entropy 会让模型学习"相关→预测否"——方向完全相反。这个 bug 让所有早期 rerank 实验得出了"小模型不能做 rerank 微调"的**错误结论**。
+
+> **结论：minimind 64M 完全适合做 reranker**。之前"灾难性遗忘"的判断是 label bug 的假象。修复后，全参数微调 + Stage3 融合，MAP@10 达 **0.915**，准确率 85%。
+
+详细 JSON：见 `results/rerank_noleak_stage3.json`。
 
 ## Ⅱ MTEB 英文结果
 
@@ -780,7 +845,7 @@ A: Dense 64M 版本完全可以（显存占用 ~12-14GB）。MoE 198M 长序列�
 A: Qwen3-Embedding 报告未公布具体值，社区复现常用 0.02~0.05。0.02 是 InfoNCE 的经验最佳点（使相似度差异足够尖锐，便于区分正负样本）。
 
 **Q: 为什么用"是"/"否"而不是新增 `<yes>`/`<no>`？**
-A: 实验发现，新增 token 的 embedding 是随机初始化的，64M 小模型在低 lr 下难以学好"相关性 → 新 token"的映射，导致 rerank 分数反而下降（灾难性遗忘）。改用词表中现成的 `是`(id=357)/`否`(id=1332)——它们是单 token、语义明确、预训练见过无数次的中文词，直接复用效果最好（零样本 MAP@10 就达 0.47）。
+A: 最初新增了 `<yes>`/`<no>` 特殊 token，但它们的 embedding 是随机初始化的，模型难以学好映射。后改为复用词表中现成的 `是`(id=357)/`否`(id=1332)——单 token、语义明确、预训练见过无数次。但**真正的 rerank 突破来自修复 label 映射 bug**（见评估章节"三个 Bug 的故事"），修复后 MAP@10 从 0.47 飙升到 0.915。
 
 </details>
 
