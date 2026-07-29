@@ -86,7 +86,7 @@ This echoes exactly what jingyaogong, the author of MiniMind, intended when buil
 | minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ Three stages done | STS **0.478** |
 | minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | ✅ Three stages done | STS 0.422 |
 | minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ Fine-tuning done | MAP@10 **0.915** |
-| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 TODO | — |
+| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | ✅ Done | 0.604 |
 
 ---
 
@@ -770,14 +770,19 @@ Evaluation method: [C-MTEB/T2Reranking](https://huggingface.co/datasets/C-MTEB/T
 | Method | MAP@10 | Accuracy | Notes |
 |--------|:---:|:---:|------|
 | Pure pretrained backbone (zero-shot) | 0.472 | — | baseline — use the prompt to let the model predict 是/否 directly |
-| **Full-parameter fine-tuning + Stage 3 merge** | **0.915** | 85% | ✅ **+94%**, trained after the label fix |
+| **Dense full fine-tuning + Stage 3** | **0.915** | 85% | ✅ **+94%**, trained after the label fix |
+| MoE full fine-tuning + Stage 3 | 0.604 | 88% | MoE training acc higher but MAP lower |
 | Frozen backbone (train lm_head only) | 0.650 | 63% | also works (+38%), but worse than full-parameter |
 
 <div align="center">
 
-![Rerank MAP@10 comparison](./images/rerank_scores.png)
+![Rerank Dense vs MoE](./images/rerank_dense_vs_moe.png)
+
+*Left: MAP@10 (Dense 0.915 ≫ MoE 0.604). Right: training accuracy (MoE 88% > Dense 85%, but ranking ability is weaker).*
 
 </div>
+
+> **Counterintuitive finding**: MoE's training accuracy (88%) is higher than Dense (85%), but its MAP@10 (0.604) is far lower. MoE excels at pointwise classification (yes/no) but is weaker at **ranking** — top-1 routing means each expert sees only partial tokens, making it hard to form a global relevance ordering.
 
 ### 🔍 Three Bugs Story (this project's most important engineering lesson)
 

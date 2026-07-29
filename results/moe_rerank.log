@@ -1,0 +1,129 @@
+== MiniMind-Rerank 训练 (rerank_moe_198m) ==
+[load_pretrained_backbone] 已加载 /root/minimind-embeddings/out/pretrain_768_moe.pth
+  完整加载: 171 个参数
+  部分加载: 0 个(vocab 扩展,前 6400 行已拷贝)
+  跳过:     0 个(embedding 模型忽略 lm_head / rerank 缺 head 属正常)
+参数量: 198.4M-A63.9M
+yes_token_id=357, no_token_id=1332
+[HFRerankDataset] 加载 C-MTEB/T2Reranking (config=None) split=dev ...
+[HFRerankDataset] 训练集切分: 前 80000/100000 条(避免泄露)
+[HFRerankDataset] 展开后共 80000 条 (q,d,label) 对
+总步数: 15000, batch=16, accum=1
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from WANDB_API_KEY.
+wandb: Currently logged in as: qinganli (qinganli-personal) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run kphkewlz
+wandb: Tracking run with wandb version 0.28.1
+wandb: Run data is saved locally in /root/minimind-embeddings/wandb/run-20260729_203306-kphkewlz
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run moe_rerank_noleak_3ep
+wandb: ⭐️ View project at https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: 🚀 View run at https://wandb.ai/qinganli-personal/minimind-embedding/runs/kphkewlz
+[wandb] 已启用,run=moe_rerank_noleak_3ep
+epoch 0 step 200/15000 loss 0.8051 acc 0.558 lr 1.00e-05
+epoch 0 step 400/15000 loss 0.6697 acc 0.609 lr 9.98e-06
+epoch 0 step 600/15000 loss 0.6596 acc 0.603 lr 9.96e-06
+epoch 0 step 800/15000 loss 0.6471 acc 0.627 lr 9.94e-06
+epoch 0 step 1000/15000 loss 0.6257 acc 0.651 lr 9.90e-06
+epoch 0 step 1200/15000 loss 0.6264 acc 0.647 lr 9.86e-06
+epoch 0 step 1400/15000 loss 0.6243 acc 0.650 lr 9.81e-06
+epoch 0 step 1600/15000 loss 0.6039 acc 0.672 lr 9.75e-06
+epoch 0 step 1800/15000 loss 0.5942 acc 0.671 lr 9.68e-06
+epoch 0 step 2000/15000 loss 0.5996 acc 0.682 lr 9.61e-06
+[save] rerank_768_moe_step2000.pth + latest
+epoch 0 step 2200/15000 loss 0.6039 acc 0.670 lr 9.53e-06
+epoch 0 step 2400/15000 loss 0.5972 acc 0.677 lr 9.44e-06
+epoch 0 step 2600/15000 loss 0.5989 acc 0.674 lr 9.35e-06
+epoch 0 step 2800/15000 loss 0.5814 acc 0.690 lr 9.25e-06
+epoch 0 step 3000/15000 loss 0.6040 acc 0.670 lr 9.14e-06
+epoch 0 step 3200/15000 loss 0.5927 acc 0.684 lr 9.03e-06
+epoch 0 step 3400/15000 loss 0.5981 acc 0.665 lr 8.91e-06
+epoch 0 step 3600/15000 loss 0.5857 acc 0.677 lr 8.78e-06
+epoch 0 step 3800/15000 loss 0.5893 acc 0.679 lr 8.65e-06
+epoch 0 step 4000/15000 loss 0.5894 acc 0.684 lr 8.51e-06
+[save] rerank_768_moe_step4000.pth + latest
+epoch 0 step 4200/15000 loss 0.5871 acc 0.688 lr 8.37e-06
+epoch 0 step 4400/15000 loss 0.5901 acc 0.675 lr 8.22e-06
+epoch 0 step 4600/15000 loss 0.5799 acc 0.704 lr 8.07e-06
+epoch 0 step 4800/15000 loss 0.5745 acc 0.699 lr 7.91e-06
+epoch 0 step 5000/15000 loss 0.5769 acc 0.692 lr 7.75e-06
+epoch 1 step 5200/15000 loss 0.5214 acc 0.748 lr 7.59e-06
+epoch 1 step 5400/15000 loss 0.5195 acc 0.742 lr 7.42e-06
+epoch 1 step 5600/15000 loss 0.5071 acc 0.754 lr 7.24e-06
+epoch 1 step 5800/15000 loss 0.5172 acc 0.739 lr 7.07e-06
+epoch 1 step 6000/15000 loss 0.5003 acc 0.755 lr 6.89e-06
+[save] rerank_768_moe_step6000.pth + latest
+epoch 1 step 6200/15000 loss 0.5212 acc 0.741 lr 6.71e-06
+epoch 1 step 6400/15000 loss 0.5146 acc 0.742 lr 6.53e-06
+epoch 1 step 6600/15000 loss 0.5229 acc 0.738 lr 6.34e-06
+epoch 1 step 6800/15000 loss 0.4862 acc 0.760 lr 6.16e-06
+epoch 1 step 7000/15000 loss 0.4989 acc 0.756 lr 5.97e-06
+epoch 1 step 7200/15000 loss 0.5115 acc 0.741 lr 5.78e-06
+epoch 1 step 7400/15000 loss 0.5054 acc 0.747 lr 5.60e-06
+epoch 1 step 7600/15000 loss 0.5118 acc 0.748 lr 5.41e-06
+epoch 1 step 7800/15000 loss 0.5172 acc 0.734 lr 5.22e-06
+epoch 1 step 8000/15000 loss 0.5122 acc 0.750 lr 5.03e-06
+[save] rerank_768_moe_step8000.pth + latest
+epoch 1 step 8200/15000 loss 0.5178 acc 0.743 lr 4.84e-06
+epoch 1 step 8400/15000 loss 0.5184 acc 0.735 lr 4.66e-06
+epoch 1 step 8600/15000 loss 0.5160 acc 0.747 lr 4.47e-06
+epoch 1 step 8800/15000 loss 0.5068 acc 0.750 lr 4.29e-06
+epoch 1 step 9000/15000 loss 0.4998 acc 0.752 lr 4.11e-06
+epoch 1 step 9200/15000 loss 0.5150 acc 0.745 lr 3.93e-06
+epoch 1 step 9400/15000 loss 0.5033 acc 0.748 lr 3.76e-06
+epoch 1 step 9600/15000 loss 0.5059 acc 0.745 lr 3.58e-06
+epoch 1 step 9800/15000 loss 0.4932 acc 0.761 lr 3.42e-06
+epoch 1 step 10000/15000 loss 0.4892 acc 0.761 lr 3.25e-06
+[save] rerank_768_moe_step10000.pth + latest
+epoch 2 step 10200/15000 loss 0.3331 acc 0.863 lr 3.09e-06
+epoch 2 step 10400/15000 loss 0.3207 acc 0.861 lr 2.93e-06
+epoch 2 step 10600/15000 loss 0.2963 acc 0.876 lr 2.78e-06
+epoch 2 step 10800/15000 loss 0.3199 acc 0.860 lr 2.63e-06
+epoch 2 step 11000/15000 loss 0.2778 acc 0.884 lr 2.49e-06
+epoch 2 step 11200/15000 loss 0.2975 acc 0.878 lr 2.35e-06
+epoch 2 step 11400/15000 loss 0.2951 acc 0.877 lr 2.22e-06
+epoch 2 step 11600/15000 loss 0.3072 acc 0.867 lr 2.09e-06
+epoch 2 step 11800/15000 loss 0.2863 acc 0.877 lr 1.97e-06
+epoch 2 step 12000/15000 loss 0.3008 acc 0.874 lr 1.86e-06
+[save] rerank_768_moe_step12000.pth + latest
+epoch 2 step 12200/15000 loss 0.2887 acc 0.872 lr 1.75e-06
+epoch 2 step 12400/15000 loss 0.2987 acc 0.871 lr 1.65e-06
+epoch 2 step 12600/15000 loss 0.2954 acc 0.869 lr 1.56e-06
+epoch 2 step 12800/15000 loss 0.2776 acc 0.888 lr 1.47e-06
+epoch 2 step 13000/15000 loss 0.3051 acc 0.871 lr 1.39e-06
+epoch 2 step 13200/15000 loss 0.3103 acc 0.874 lr 1.32e-06
+epoch 2 step 13400/15000 loss 0.3047 acc 0.870 lr 1.25e-06
+epoch 2 step 13600/15000 loss 0.2913 acc 0.879 lr 1.19e-06
+epoch 2 step 13800/15000 loss 0.2911 acc 0.877 lr 1.14e-06
+epoch 2 step 14000/15000 loss 0.3130 acc 0.868 lr 1.10e-06
+[save] rerank_768_moe_step14000.pth + latest
+epoch 2 step 14200/15000 loss 0.2906 acc 0.879 lr 1.06e-06
+epoch 2 step 14400/15000 loss 0.2975 acc 0.870 lr 1.04e-06
+epoch 2 step 14600/15000 loss 0.2905 acc 0.878 lr 1.02e-06
+epoch 2 step 14800/15000 loss 0.2797 acc 0.879 lr 1.00e-06
+epoch 2 step 15000/15000 loss 0.2833 acc 0.881 lr 1.00e-06
+[save] rerank_768_moe_step15000.pth + latest
+== 训练完成,共 15000 步 ==
+wandb: updating run metadata
+wandb: uploading output.log; uploading wandb-summary.json; uploading config.yaml
+wandb: uploading history steps 74-74, summary, console lines 83-84
+wandb: 
+wandb: Run history:
+wandb: accuracy ▁▂▂▃▃▃▃▃▃▃▃▃▄▃▄▄▅▄▅▅▅▄▅▅▅▅▅▇▇███████████
+wandb:    epoch ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅██████████
+wandb:     loss ███▇▇▇▇▇▆▇▇▇▆▆▅▅▅▅▅▅▅▅▅▅▂▂▁▁▁▂▁▁▁▂▁▁▂▁▁▁
+wandb:       lr ██████▇▇▇▇▇▇▆▆▆▆▅▅▅▅▄▄▄▃▃▃▃▃▂▂▂▂▂▂▁▁▁▁▁▁
+wandb: progress ▁▁▁▁▁▂▂▂▂▂▃▃▃▃▄▄▄▄▄▄▅▅▅▅▅▆▆▆▆▆▆▆▇▇▇▇▇███
+wandb:     step ▁▁▁▁▁▃▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇▇▇███
+wandb: 
+wandb: Run summary:
+wandb: accuracy 0.88094
+wandb:    epoch 2
+wandb:     loss 0.28329
+wandb:       lr 0.0
+wandb: progress 1
+wandb:     step 15000
+wandb: 
+wandb: 🚀 View run moe_rerank_noleak_3ep at: https://wandb.ai/qinganli-personal/minimind-embedding/runs/kphkewlz
+wandb: ⭐️ View project at: https://wandb.ai/qinganli-personal/minimind-embedding
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260729_203306-kphkewlz/logs

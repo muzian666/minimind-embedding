@@ -86,7 +86,7 @@
 | minimind-embedding-dense | Embedding | 64M | minimind-3 | 8192 | ✅ 三阶段完成 | **0.478** |
 | minimind-embedding-moe | Embedding | 198M-A64M | minimind-3-moe | 8192 | ✅ 三阶段完成 | 0.422 |
 | minimind-rerank-dense | Rerank | 64M | minimind-3 | 8192 | ✅ 微调完成 | **0.915** |
-| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | 🚧 待训练 | — |
+| minimind-rerank-moe | Rerank | 198M-A64M | minimind-3-moe | 8192 | ✅ 微调完成 | 0.604 |
 
 ---
 
@@ -770,14 +770,19 @@ nohup python -u -m minimind_rerank.train \
 | 方案 | MAP@10 | 准确率 | 说明 |
 |------|:---:|:---:|------|
 | 纯预训练底座（零样本） | 0.472 | — | baseline，直接用 prompt 让模型预测"是/否" |
-| **全参数微调 + Stage3 融合** | **0.915** | 85% | ✅ **+94%**，label 修复后训练 |
+| **Dense 全参数微调 + Stage3** | **0.915** | 85% | ✅ **+94%**，label 修复后训练 |
+| MoE 全参数微调 + Stage3 | 0.604 | 88% | MoE 训练 acc 更高但 MAP 更低 |
 | 冻结底座（仅训 lm_head） | 0.650 | 63% | 也有效（+38%），但不如全参数 |
 
 <div align="center">
 
-![Rerank MAP@10 对比](./images/rerank_scores.png)
+![Rerank Dense vs MoE 对比](./images/rerank_dense_vs_moe.png)
+
+*左：MAP@10 对比（Dense 0.915 ≫ MoE 0.604）。右：训练准确率对比（MoE 88% > Dense 85%，但排序能力反而弱）。*
 
 </div>
+
+> **反直觉发现**：MoE 的训练准确率(88%)高于 Dense(85%)，但 MAP@10(0.604)远低于 Dense(0.915)。原因是 MoE 的 pointwise 分类能力强（判断 yes/no 更准），但**排序能力弱**（区分"很相关"vs"有点相关"的粒度不够）——top-1 routing 让每个 expert 只看到部分 token，难以形成全局的相关性排序。
 
 ### 🔍 三个 Bug 的故事（本项目最重要的工程教训）
 
