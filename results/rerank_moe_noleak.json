@@ -1,0 +1,5 @@
+{
+  "checkpoint": "/root/minimind-embeddings/checkpoints/rerank/rerank_moe_stage3.pth",
+  "T2Reranking_MAP@10": 0.6037764762809481,
+  "n": 1178
+}
