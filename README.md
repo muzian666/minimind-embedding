@@ -763,6 +763,30 @@ nohup python -u -m minimind_rerank.train \
 
 详细 JSON：见 `results/sts_stage3.json`（Dense）、`results/sts_moe_stage3.json`（MoE）。
 
+## Ⅰ-Ⅱ MRL 多维度评测（Matryoshka 保持率）
+
+MRL 训练的目标就是让截断后的向量仍保持良好语义。我们对 HF 发布的 Dense/MoE 融合版做完整评测：同一向量截断到不同维度（重新 L2 归一化后）计算 STS Spearman。
+
+**Dense（[Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense)）**：
+
+| 维度 | ATEC | BQ | LCQMC | STSB | 平均 | **保持率** |
+|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
+| 768（完整） | 0.2647 | 0.3786 | 0.6311 | 0.6369 | 0.4778 | 100% |
+| 512 | 0.2640 | 0.3762 | 0.6315 | 0.6347 | 0.4766 | 99.7% |
+| 256 | 0.2612 | 0.3771 | 0.6314 | 0.6337 | 0.4758 | 99.6% |
+| 128 | 0.2613 | 0.3703 | 0.6329 | 0.6298 | 0.4736 | 99.1% |
+| **64** | 0.2610 | 0.3668 | **0.6345** | 0.6267 | 0.4722 | **98.8%** |
+
+**MoE（融合版）**：同样几乎无损——64 维保持率 **99.7%**（0.4219 → 0.4207）。
+
+### MRL 结论
+
+1. **MRL 训练非常成功**：Dense 截断到 64 维（只剩 1/12 的维度、存储降为 8.3%）STS 仅降 1.2%，MoE 仅降 0.3%。Matryoshka 特性完美保持，说明训练时对每个维度切片分别算 InfoNCE 的策略有效。
+2. **低维去噪效应**：LCQMC 在 64 维（0.6345）甚至**高于**完整 768 维（0.6311）——截断丢掉的后段维度包含任务无关噪声，与 Matryoshka 论文 (Kusupati et al., 2022) 的观察一致。
+3. **实用价值**：检索系统可用 64 维做粗筛（ANN 索引小 12 倍、快数倍），768 维做精排，几乎无损。这是 MRL 在工程上最大的意义。
+
+详细 JSON：见 `results/mrl_dense_stage3.json`、`results/mrl_moe_stage3.json`。评测脚本：`scripts/eval_mrl.py`。
+
 ## Ⅱ Rerank 结果
 
 评测方法：[C-MTEB/T2Reranking](https://huggingface.co/datasets/C-MTEB/T2Reranking)，按 query 内候选文档的相关性排序，计算 **MAP@10**。**训练用前 80% query，评测用后 20%（完全不重叠，无数据泄露）**。

@@ -763,6 +763,30 @@ Dense **leads MoE across all four STS tasks**, and the gap widens on the harder 
 
 Detailed JSON: see `results/sts_stage3.json` (Dense) and `results/sts_moe_stage3.json` (MoE).
 
+## Ⅰ-Ⅱ MRL Multi-Dimension Evaluation (Matryoshka Retention)
+
+The goal of MRL training is to keep truncated vectors semantically meaningful. We fully evaluated the HF-released Dense/MoE merged models: truncate the same vector to different dimensions (re-normalized to unit L2) and compute STS Spearman.
+
+**Dense ([Muzian/minimind-embedding-dense](https://huggingface.co/Muzian/minimind-embedding-dense))**:
+
+| Dim | ATEC | BQ | LCQMC | STSB | Average | **Retention** |
+|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
+| 768 (full) | 0.2647 | 0.3786 | 0.6311 | 0.6369 | 0.4778 | 100% |
+| 512 | 0.2640 | 0.3762 | 0.6315 | 0.6347 | 0.4766 | 99.7% |
+| 256 | 0.2612 | 0.3771 | 0.6314 | 0.6337 | 0.4758 | 99.6% |
+| 128 | 0.2613 | 0.3703 | 0.6329 | 0.6298 | 0.4736 | 99.1% |
+| **64** | 0.2610 | 0.3668 | **0.6345** | 0.6267 | 0.4722 | **98.8%** |
+
+**MoE (merged)**: also nearly lossless — 64-dim retention **99.7%** (0.4219 → 0.4207).
+
+### MRL Conclusions
+
+1. **MRL training is highly successful**: truncating Dense to 64 dims (1/12 of dimensions, 8.3% storage) only drops STS by 1.2%, and MoE by 0.3%. The Matryoshka property is perfectly preserved, showing that computing InfoNCE separately per dimension slice during training works.
+2. **Low-dim denoising effect**: LCQMC at 64 dims (0.6345) is even **higher** than full 768 dims (0.6311) — the discarded tail dimensions contain task-irrelevant noise, consistent with the Matryoshka paper (Kusupati et al., 2022).
+3. **Practical value**: retrieval systems can use 64-dim vectors for coarse filtering (12x smaller ANN index, several times faster) and 768-dim for re-ranking, with almost no loss. This is MRL's biggest engineering benefit.
+
+Detailed JSON: see `results/mrl_dense_stage3.json`, `results/mrl_moe_stage3.json`. Eval script: `scripts/eval_mrl.py`.
+
 ## Ⅱ Rerank results
 
 Evaluation method: [C-MTEB/T2Reranking](https://huggingface.co/datasets/C-MTEB/T2Reranking), ranking candidate documents by relevance within each query, computing **MAP@10**. **Training uses the first 80% of queries and evaluation uses the last 20% (completely non-overlapping, no data leakage).**
